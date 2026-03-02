@@ -413,7 +413,7 @@ For summary: if verdict is STRONG_MATCH —</pre>
 
       <div>
         <div class="flex items-baseline justify-between mb-1.5">
-          <label class="block text-sm font-medium text-gray-700">Group Name <span class="text-gray-400 font-normal">(optional)</span></label>
+          <label class="block text-sm font-medium text-gray-700">Role Name <span class="text-gray-400 font-normal">(optional)</span></label>
           <span id="group-name-counter" class="text-xs text-gray-400 hidden">0 / 50</span>
         </div>
         <input id="modal-group-name" type="text" maxlength="50"
@@ -426,7 +426,7 @@ For summary: if verdict is STRONG_MATCH —</pre>
         <label class="block text-sm font-medium text-gray-700 mb-1.5">Locations <span class="text-gray-400 font-normal">(one per line)</span></label>
         <textarea id="modal-locations" rows="4"
                   class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                  placeholder="London&#10;Manchester"></textarea>
+                  placeholder="London&#10;Spain"></textarea>
       </div>
 
       <div>
@@ -434,15 +434,15 @@ For summary: if verdict is STRONG_MATCH —</pre>
         <textarea id="modal-keywords" rows="5"
                   class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                   placeholder="Product Manager&#10;Head of Product"></textarea>
-        <p class="text-xs text-gray-400 mt-1.5">💡 Use broad terms (e.g. "Product Manager", not "Senior Product Manager") — the crawler doesn't return identical results to LinkedIn for the same query. Narrow down using <strong>Title Word Filter</strong> below.</p>
+        <p class="text-xs text-gray-400 mt-1.5">💡 Use broad terms (e.g. "Product Manager", not "Senior Product Manager") to get more results. These roles names would be used to find jobs on Linkedin</p>
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1.5">Title Word Filter <span class="text-gray-400 font-normal">(optional — one rule per line)</span></label>
-        <p class="text-xs text-gray-500 mb-2">A job passes if ALL words on any single line appear in its title. Leave empty to accept all titles.</p>
+        <label class="block text-sm font-medium text-gray-700 mb-1.5">Job Title Filter <span class="text-gray-400 font-normal">(optional — one rule per line)</span></label>
         <textarea id="modal-title-filter" rows="4"
                   class="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                   placeholder="senior product manager&#10;principal product manager&#10;staff product manager"></textarea>
+        <p class="text-xs text-gray-500 mt-1.5">A job passes if its title has ALL the words from any one of the lines. This helps narrow down the search before AI scoring to save credits.</p>
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">

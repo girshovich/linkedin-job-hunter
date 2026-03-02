@@ -204,7 +204,7 @@ router.get('/job/:id', (req: Request, res: Response) => {
 
   const from = String(req.query.from || 'history');
   const backUrl   = from === 'jobs' ? '/jobs' : from === 'home' ? '/' : '/history';
-  const backLabel = from === 'jobs' ? 'Back to Jobs Match' : from === 'home' ? 'Back to Start' : 'Back to History';
+  const backLabel = 'Back';
 
   // Prev/Next navigation within the same day's strong matches (jobs & home contexts only)
   let prevId: number | null = null;
