@@ -184,6 +184,8 @@ router.post('/fetch-preview', async (_req: Request, res: Response) => {
     const allJobs: Array<{ title: string; company: string; url: string }> = [];
 
     for (const group of groups) {
+      if (!group.is_active) continue;
+
       const keywords: string[] = JSON.parse(group.keywords);
       const locations: string[] = JSON.parse(group.locations);
       const workModes: string[] = JSON.parse(group.work_modes);

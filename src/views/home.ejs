@@ -100,19 +100,13 @@ function statusColor(s) {
 
 
 <!-- ── Search for Jobs ── -->
-<div id="run-card" class="relative bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
-  <!-- Preview fetch — small top-right corner button -->
-  <button id="fetch-preview-btn" onclick="fetchPreview(this)"
-          title="Preview fetch — fetches jobs without AI scoring. Useful for testing your search configuration."
-          class="absolute top-3 right-3 w-6 h-6 flex items-center justify-center text-xs font-semibold text-gray-300 hover:text-gray-500 border border-gray-200 hover:border-gray-300 bg-gray-50 hover:bg-gray-100 rounded transition-colors">
-    <span id="fetch-preview-label">P</span>
-  </button>
+<div id="run-card" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
   <div class="flex items-center justify-between flex-wrap gap-4">
     <div>
       <h2 class="font-semibold text-gray-900">Search for Jobs</h2>
       <p class="text-sm text-gray-500 mt-0.5">Fetch LinkedIn jobs, score with AI, send email digest.</p>
     </div>
-    <div class="flex items-center gap-2 pr-8">
+    <div class="flex items-center gap-2">
       <button onclick="homeSchedule()"
               class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors shadow-sm">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -197,7 +191,7 @@ function statusColor(s) {
       <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
         <h2 class="font-semibold text-gray-900 text-sm">Last Run — Strong Matches</h2>
         <div class="flex items-center gap-3">
-          <% if (lastRunJobs.length > 50) { %><span class="text-xs text-gray-400">showing 50 of <%= lastRunJobs.length %></span><% } %>
+          <% if (lastRunJobs.length > 0) { %><span class="text-xs text-gray-400"><%= Math.min(50, lastRunJobs.length) %><% if (lastRunJobs.length > 50) { %> of <%= lastRunJobs.length %><% } %></span><% } %>
           <a href="/jobs" class="text-xs text-blue-600 hover:underline">View all →</a>
         </div>
       </div>
@@ -213,6 +207,12 @@ function statusColor(s) {
               <p class="text-xs text-gray-400 mt-0.5 truncate"><%= job.company %><% if (job.location) { %> · <%= job.location %><% } %></p>
             </div>
             <div class="flex items-center gap-2 flex-shrink-0">
+              <button onclick="quickToggleApplied(event,<%= job.id %>,this)"
+                      data-applied="<%= job.applied ? '1' : '0' %>"
+                      class="<%= job.applied ? 'text-xs px-2 py-0.5 rounded-full bg-emerald-500 text-white border border-emerald-500 hover:bg-emerald-600 transition-colors whitespace-nowrap' : 'text-xs px-2 py-0.5 rounded-full border border-gray-200 text-gray-400 hover:border-gray-400 hover:text-gray-600 transition-colors whitespace-nowrap' %>"
+                      style="width:70px;text-align:center;">
+                <%= job.applied ? '✓ Applied' : 'Applied' %>
+              </button>
               <span class="inline-block font-bold text-xs score-badge <%= scoreTextColor(job.ai_score) %> px-2 py-0.5 rounded">
                 <%= job.ai_score %>%
               </span>
@@ -240,6 +240,23 @@ let homeRunPoller = null;
 
 function homeJobClick(id) {
   location.href = '/job/' + id + '?from=home';
+}
+
+async function quickToggleApplied(event, jobId, btn) {
+  event.stopPropagation();
+  const next = btn.dataset.applied !== '1';
+  btn.dataset.applied = next ? '1' : '0';
+  if (next) {
+    btn.className = 'text-xs px-2 py-0.5 rounded-full bg-emerald-500 text-white border border-emerald-500 hover:bg-emerald-600 transition-colors whitespace-nowrap';
+    btn.textContent = '✓ Applied';
+  } else {
+    btn.className = 'text-xs px-2 py-0.5 rounded-full border border-gray-200 text-gray-400 hover:border-gray-400 hover:text-gray-600 transition-colors whitespace-nowrap';
+    btn.textContent = 'Applied';
+  }
+  await fetch('/api/jobs/' + jobId + '/applied', {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ applied: next }),
+  }).catch(() => {});
 }
 
 async function preflight() {

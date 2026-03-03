@@ -102,19 +102,19 @@ router.get('/', (req: Request, res: Response) => {
     ? db.prepare(
         `SELECT * FROM jobs
          WHERE ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0 AND group_id = ?
-         ORDER BY fetched_at DESC, ai_score DESC`,
+         ORDER BY DATE(fetched_at) DESC, ai_score DESC`,
       ).all(activeGroupId)
     : activeOthers
     ? db.prepare(
         `SELECT * FROM jobs
          WHERE ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0
          AND (group_id IS NULL OR group_id NOT IN (SELECT id FROM search_groups))
-         ORDER BY fetched_at DESC, ai_score DESC`,
+         ORDER BY DATE(fetched_at) DESC, ai_score DESC`,
       ).all()
     : db.prepare(
         `SELECT * FROM jobs
          WHERE ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0
-         ORDER BY fetched_at DESC, ai_score DESC`,
+         ORDER BY DATE(fetched_at) DESC, ai_score DESC`,
       ).all()
   ) as JobRow[];
 

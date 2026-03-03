@@ -206,17 +206,28 @@ router.get('/job/:id', (req: Request, res: Response) => {
   const backUrl   = from === 'jobs' ? '/jobs' : from === 'home' ? '/' : '/history';
   const backLabel = 'Back';
 
-  // Prev/Next navigation within the same day's strong matches (jobs & home contexts only)
+  // Prev/Next navigation — order matches the source page
   let prevId: number | null = null;
   let nextId: number | null = null;
-  if (from === 'jobs' || from === 'home') {
+  if (from === 'jobs') {
+    // Jobs Match sorts: fetched_at DESC, ai_score DESC (all strong matches, all time)
+    const allIds = db.prepare(`
+      SELECT id FROM jobs
+      WHERE ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0
+      ORDER BY DATE(fetched_at) DESC, ai_score DESC
+    `).all() as Array<{ id: number }>;
+    const idx = allIds.findIndex((r) => r.id === id);
+    if (idx > 0) prevId = allIds[idx - 1].id;
+    if (idx >= 0 && idx < allIds.length - 1) nextId = allIds[idx + 1].id;
+  } else if (from === 'home') {
+    // Home sorts: ai_score DESC within the last run (same day)
     const day = job.fetched_at ? String(job.fetched_at).slice(0, 10) : null;
     if (day) {
       const sameDayIds = db.prepare(`
         SELECT id FROM jobs
         WHERE ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0
           AND strftime('%Y-%m-%d', fetched_at) = ?
-        ORDER BY ai_score DESC, id ASC
+        ORDER BY ai_score DESC
       `).all(day) as Array<{ id: number }>;
       const idx = sameDayIds.findIndex((r) => r.id === id);
       if (idx > 0) prevId = sameDayIds[idx - 1].id;
