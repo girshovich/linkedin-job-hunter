@@ -5,7 +5,7 @@
   "private": true,
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc && rm -rf dist/views && cp -r src/views dist/views",
+    "build": "tsc && rm -rf dist/views dist/public && cp -r src/views dist/views && cp -r src/public dist/public",
     "start": "node dist/index.js",
     "dev": "ts-node --transpile-only src/index.ts",
     "typecheck": "tsc --noEmit"

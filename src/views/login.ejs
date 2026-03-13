@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Job Hunter</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-gray-50 flex items-center justify-center">
+  <div class="w-full max-w-xs mx-auto flex flex-col items-center gap-6 p-8 bg-white rounded-2xl shadow-md">
+    <img src="/capy.png" alt="" class="w-36 h-36 object-contain rounded-xl" />
+    <% if (error) { %>
+      <p class="text-sm text-red-500 -mb-2"><%= error %></p>
+    <% } %>
+    <form method="POST" action="/login" class="w-full flex flex-col gap-3">
+      <input
+        type="password"
+        name="password"
+        placeholder="Password"
+        autofocus
+        required
+        class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+      <button
+        type="submit"
+        class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+      >
+        Enter
+      </button>
+    </form>
+  </div>
+</body>
+</html>

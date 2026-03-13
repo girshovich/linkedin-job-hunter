@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import * as path from 'path';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { config } from './config';
@@ -22,6 +23,39 @@ app.set('views', path.join(__dirname, 'views'));
 // Body parsing (before middleware that reads req.body)
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+
+// Static files (images, etc.) — served before auth
+app.use(express.static(path.join(__dirname, 'public')));
+
+// --- Auth ---
+// Login page is registered before the auth middleware so it doesn't require auth.
+// It also runs before the layout helper, so res.render('login') sends the page directly.
+
+const SESSION_TOKEN = crypto.randomBytes(32).toString('hex');
+
+app.get('/login', (_req: Request, res: Response) => {
+  if (!config.dashboardPass) { res.redirect('/'); return; }
+  res.render('login', { error: null });
+});
+
+app.post('/login', (req: Request, res: Response) => {
+  const pass = String((req.body as Record<string, unknown>).password || '');
+  if (pass === config.dashboardPass) {
+    res.setHeader('Set-Cookie', `auth=${SESSION_TOKEN}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 24 * 60 * 60}`);
+    res.redirect('/');
+  } else {
+    res.render('login', { error: 'Wrong password.' });
+  }
+});
+
+// Auth gate — protects all routes below
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  if (!config.dashboardPass) { next(); return; }
+  const cookieHeader = _req.headers.cookie || '';
+  const match = cookieHeader.match(/(?:^|;\s*)auth=([^;]+)/);
+  if (match && match[1] === SESSION_TOKEN) { next(); return; }
+  res.redirect('/login');
+});
 
 // Profile middleware — reads active_profile_id cookie, attaches req.profile + res.locals.activeProfile
 const PROFILES: Record<number, string> = { 1: 'Mikhail', 2: 'Arina' };
@@ -99,15 +133,13 @@ process.on('uncaughtException', (err) => {
 
 async function start(): Promise<void> {
   // Initialize DB (schema + seed)
-  const db = getDb();
+  getDb();
   console.log(`[db] SQLite ready at ${config.dbPath}`);
-
-  // Cron scheduler starts paused — enable via the dashboard "Run by Schedule" button
 
   // Start web server
   app.listen(config.port, () => {
     console.log(`[server] Dashboard running at http://localhost:${config.port}`);
-    console.log(`[server] Auth: ${config.dashboardUser} / ***`);
+    console.log(`[server] Auth: password-only login${config.dashboardPass ? '' : ' (DASHBOARD_PASS not set — open access)'}`);
   });
 }
 
