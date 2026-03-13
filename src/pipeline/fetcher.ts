@@ -156,6 +156,11 @@ function filterByTimeWindow(job: JobPosting, dateRange: DateRange = '24h'): bool
   return posted >= cutoff;
 }
 
+export interface FetchResult {
+  jobs: JobPosting[];
+  apifyCostUsd: number | null;
+}
+
 // --- Main export ---
 
 const FETCH_MAX_ATTEMPTS = 3;
@@ -165,7 +170,7 @@ async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function fetchJobs(filters: SearchFilters, apifyToken: string, dateRange: DateRange = '24h'): Promise<JobPosting[]> {
+export async function fetchJobs(filters: SearchFilters, apifyToken: string, dateRange: DateRange = '24h'): Promise<FetchResult> {
   const client = new ApifyClient({ token: apifyToken });
 
   const actorInput: Record<string, unknown> = {
@@ -188,6 +193,10 @@ export async function fetchJobs(filters: SearchFilters, apifyToken: string, date
 
       console.log(`[fetcher] Actor run complete (${run.id}), fetching dataset items…`);
 
+      const apifyCostUsd = typeof (run as unknown as Record<string, unknown>).usageTotalUsd === 'number'
+        ? (run as unknown as Record<string, unknown>).usageTotalUsd as number
+        : null;
+
       const { items } = await client.dataset(run.defaultDatasetId).listItems();
 
       console.log(`[fetcher] Raw items from actor: ${items.length}`);
@@ -199,7 +208,7 @@ export async function fetchJobs(filters: SearchFilters, apifyToken: string, date
 
       console.log(`[fetcher] Jobs after time-window filter: ${jobs.length}`);
 
-      return jobs;
+      return { jobs, apifyCostUsd };
     } catch (err) {
       lastErr = err;
       const code = (err as NodeJS.ErrnoException).code;

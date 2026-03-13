@@ -30,6 +30,11 @@ export interface DedupeAndSummaryResult {
   duplicateOfId: number | null;
 }
 
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Strip HTML tags and decode basic entities — keeps text clean for the AI prompt. */
@@ -169,7 +174,7 @@ async function callScoringLlm(
   userMessage: string,
   model: string,
   openAiKey: string,
-): Promise<ScoringLlmOutput> {
+): Promise<{ result: ScoringLlmOutput; usage: TokenUsage }> {
   const client = new OpenAI({ apiKey: openAiKey });
   const response = await client.responses.create({
     model,
@@ -202,21 +207,29 @@ async function callScoringLlm(
 
   const text = response.output_text;
   if (!text) throw new Error('Empty response from OpenAI');
-  return JSON.parse(text) as ScoringLlmOutput;
+  return {
+    result: JSON.parse(text) as ScoringLlmOutput,
+    usage: {
+      inputTokens: response.usage?.input_tokens ?? 0,
+      outputTokens: response.usage?.output_tokens ?? 0,
+    },
+  };
 }
 
 export async function scoreJobs(
   jobs: JobPosting[],
   settings: SettingsRow,
   openAiKey: string,
-): Promise<ScoredJob[]> {
+): Promise<{ jobs: ScoredJob[]; tokenUsage: TokenUsage }> {
   const results: ScoredJob[] = [];
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
 
   for (const job of jobs) {
-    let output: ScoringLlmOutput | null = null;
+    let callResult: { result: ScoringLlmOutput; usage: TokenUsage } | null = null;
 
     try {
-      output = await callScoringLlm(
+      callResult = await callScoringLlm(
         settings.ai_system_prompt,
         buildScoringUserMessage(job, settings.summary_prompt),
         settings.ai_model,
@@ -226,7 +239,7 @@ export async function scoreJobs(
       console.warn(`[aiScorer] First attempt failed for "${job.title}" at "${job.company}". Retrying with truncated description.`);
       try {
         const truncated = { ...job, description: trimBoilerplate(stripHtml(job.description)).substring(0, 3_000) };
-        output = await callScoringLlm(
+        callResult = await callScoringLlm(
           settings.ai_system_prompt,
           buildScoringUserMessage(truncated, settings.summary_prompt),
           settings.ai_model,
@@ -238,13 +251,16 @@ export async function scoreJobs(
       }
     }
 
-    if (!output) continue;
+    if (!callResult) continue;
 
+    totalInputTokens += callResult.usage.inputTokens;
+    totalOutputTokens += callResult.usage.outputTokens;
+
+    const output = callResult.result;
     const score = Math.max(0, Math.min(100, Math.round(output.score)));
     const verdict = computeVerdict(score, settings);
     const rejectionCategory = verdict === 'NO_MATCH' && output.rejection_category !== 'NONE'
       ? output.rejection_category : null;
-    // Summary only meaningful for strong matches; null otherwise
     const summary = verdict === 'STRONG_MATCH' ? ((output.summary || '').trim() || null) : null;
 
     results.push({
@@ -257,7 +273,7 @@ export async function scoreJobs(
     });
   }
 
-  return results;
+  return { jobs: results, tokenUsage: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens } };
 }
 
 // ── Call 2: Dedup only (strong matches with existing same-company+title in DB) ──
@@ -299,7 +315,7 @@ export async function dedupAndSummarise(
   existingJobs: ExistingJob[],
   settings: SettingsRow,
   openAiKey: string,
-): Promise<DedupeAndSummaryResult> {
+): Promise<DedupeAndSummaryResult & { tokenUsage: TokenUsage }> {
   const systemPrompt = buildDedupSummarySystemPrompt(settings.dedup_system_prompt);
 
   try {
@@ -337,13 +353,19 @@ export async function dedupAndSummarise(
     const isDuplicate = output.is_duplicate;
     const duplicateOfId = isDuplicate ? (output.duplicate_of_id ?? null) : null;
 
-    return { isDuplicate, duplicateOfId };
+    return {
+      isDuplicate,
+      duplicateOfId,
+      tokenUsage: {
+        inputTokens: response.usage?.input_tokens ?? 0,
+        outputTokens: response.usage?.output_tokens ?? 0,
+      },
+    };
   } catch (err) {
     console.error(
       `[aiScorer] Dedup check failed for "${scoredJob.job.title}" at "${scoredJob.job.company}":`,
       (err as Error).message,
     );
-    // On failure: treat as non-duplicate — safer than losing the job
-    return { isDuplicate: false, duplicateOfId: null };
+    return { isDuplicate: false, duplicateOfId: null, tokenUsage: { inputTokens: 0, outputTokens: 0 } };
   }
 }

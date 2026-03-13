@@ -93,7 +93,7 @@ function verdictChip(verdict, rejectionCategory) {
       <% } %>
     </div>
 
-    <!-- Stats summary -->
+    <!-- Stats summary + cost button -->
     <div class="flex items-center gap-3 flex-shrink-0 ml-4">
       <span class="text-xs text-gray-500 hidden sm:block">
         <span class="font-medium text-gray-700"><%= run.jobs_fetched %></span> fetched
@@ -105,6 +105,37 @@ function verdictChip(verdict, rejectionCategory) {
         <% if (run.blacklistedCount > 0) { %>· <span class="font-medium text-gray-500"><%= run.blacklistedCount %></span> blacklisted<% } %>
       </span>
       <span class="text-xs text-gray-400"><%= totalJobs %> logged</span>
+
+      <!-- Cost button -->
+      <% if (run.cost_openai_usd != null || run.cost_apify_usd != null) { %>
+      <div class="relative" onclick="event.stopPropagation()">
+        <button
+          onclick="toggleCostPopup('<%= run.id %>')"
+          class="text-sm font-bold text-emerald-600 hover:text-emerald-700 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-emerald-50 transition-colors"
+          title="Run costs"
+        >$</button>
+        <div id="cost-popup-<%= run.id %>" class="hidden absolute right-0 top-full mt-1 z-10 bg-white border border-gray-200 rounded-xl shadow-lg p-3 text-xs min-w-[170px]">
+          <% if (run.cost_openai_usd != null) { %>
+          <div class="flex justify-between gap-6 text-gray-600">
+            <span>OpenAI</span>
+            <span class="font-medium text-gray-900">$<%= run.cost_openai_usd.toFixed(4) %></span>
+          </div>
+          <% } %>
+          <% if (run.cost_apify_usd != null) { %>
+          <div class="flex justify-between gap-6 text-gray-600 mt-1.5">
+            <span>Apify</span>
+            <span class="font-medium text-gray-900">$<%= run.cost_apify_usd.toFixed(4) %></span>
+          </div>
+          <% } %>
+          <% if (run.cost_openai_usd != null && run.cost_apify_usd != null) { %>
+          <div class="flex justify-between gap-6 mt-2 pt-2 border-t border-gray-100">
+            <span class="font-medium text-gray-700">Total</span>
+            <span class="font-bold text-gray-900">$<%= (run.cost_openai_usd + run.cost_apify_usd).toFixed(4) %></span>
+          </div>
+          <% } %>
+        </div>
+      </div>
+      <% } %>
     </div>
   </summary>
 
@@ -193,3 +224,15 @@ function verdictChip(verdict, rejectionCategory) {
 <% }); %>
 </div>
 <% } %>
+
+<script>
+function toggleCostPopup(runId) {
+  const popup = document.getElementById('cost-popup-' + runId);
+  const isHidden = popup.classList.contains('hidden');
+  document.querySelectorAll('[id^="cost-popup-"]').forEach(el => el.classList.add('hidden'));
+  if (isHidden) popup.classList.remove('hidden');
+}
+document.addEventListener('click', () => {
+  document.querySelectorAll('[id^="cost-popup-"]').forEach(el => el.classList.add('hidden'));
+});
+</script>

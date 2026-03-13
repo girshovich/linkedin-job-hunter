@@ -12,6 +12,27 @@ import { filterNewJobs } from './deduplicator';
 import { scoreJobs, dedupAndSummarise, buildScoringSystemPrompt, type ScoredJob, type ExistingJob } from './aiScorer';
 import { sendDailyReport, type RunStats } from './emailReport';
 
+// Price per 1M tokens in USD — sorted longest key first so prefix matching is unambiguous
+const OPENAI_PRICING: Record<string, { input: number; output: number }> = {
+  'gpt-4o-mini':   { input: 0.15,  output: 0.60  },
+  'gpt-4o':        { input: 2.50,  output: 10.00 },
+  'gpt-4-turbo':   { input: 10.00, output: 30.00 },
+  'gpt-4':         { input: 30.00, output: 60.00 },
+  'o1-mini':       { input: 3.00,  output: 12.00 },
+  'o1':            { input: 15.00, output: 60.00 },
+  'o3-mini':       { input: 1.10,  output: 4.40  },
+  'gpt-3.5-turbo': { input: 0.50,  output: 1.50  },
+};
+
+function calcOpenAiCost(model: string, inputTokens: number, outputTokens: number): number | null {
+  const key = Object.keys(OPENAI_PRICING)
+    .sort((a, b) => b.length - a.length)
+    .find((k) => model.startsWith(k));
+  if (!key) return null;
+  const p = OPENAI_PRICING[key];
+  return (inputTokens * p.input + outputTokens * p.output) / 1_000_000;
+}
+
 function matchesTitleFilter(title: string, filter: string): boolean {
   const titleWords = new Set(title.toLowerCase().split(/\W+/).filter(Boolean));
   return filter
@@ -84,6 +105,10 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
   let jobsWeakMatch = 0;
   let jobsNoMatch = 0;
   let jobsDuplicate = 0;
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let totalApifyCostUsd = 0;
+  let apifyRunCount = 0;
 
   try {
     const db = getDb();
@@ -169,12 +194,17 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
       // 1. Fetch
       let allFetched: JobPosting[] = [];
       try {
-        allFetched = await fetchJobs({
+        const fetchResult = await fetchJobs({
           keywords,
           locations,
           workModes,
           jobType: group.job_type,
         }, apifyToken, dateRange);
+        allFetched = fetchResult.jobs;
+        if (fetchResult.apifyCostUsd != null) {
+          totalApifyCostUsd += fetchResult.apifyCostUsd;
+          apifyRunCount++;
+        }
       } catch (err) {
         const msg = `Group ${group.id} fetch error: ${(err as Error).message}`;
         console.error('[runner]', msg);
@@ -273,8 +303,11 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
 
       let scoredJobs: ScoredJob[] = [];
       if (newJobs.length > 0) {
-        scoredJobs = await scoreJobs(newJobs, scoringSettings, openAiKey);
+        const scoreResult = await scoreJobs(newJobs, scoringSettings, openAiKey);
+        scoredJobs = scoreResult.jobs;
         jobsScored += scoredJobs.length;
+        totalInputTokens += scoreResult.tokenUsage.inputTokens;
+        totalOutputTokens += scoreResult.tokenUsage.outputTokens;
       }
 
       // 4b. Dedup + summary for strong matches (Call 2: dedup + summary)
@@ -311,6 +344,8 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
               const dedup = await dedupAndSummarise(scored, existingJobs, settings, openAiKey);
               isDuplicate = dedup.isDuplicate;
               duplicateOfId = dedup.duplicateOfId;
+              totalInputTokens += dedup.tokenUsage.inputTokens;
+              totalOutputTokens += dedup.tokenUsage.outputTokens;
               if (isDuplicate) {
                 console.log(`[runner] Semantic duplicate: "${scored.job.title}" at "${scored.job.company}" → original ID ${duplicateOfId}`);
               }
@@ -426,16 +461,21 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
     const durationMs = Date.now() - startedAt;
     const status = errors.length === 0 ? 'success' : 'partial_error';
 
+    const costOpenAiUsd = calcOpenAiCost(settings.ai_model, totalInputTokens, totalOutputTokens);
+    const costApifyUsd = apifyRunCount > 0 ? totalApifyCostUsd : null;
+
     db.prepare(`
       UPDATE search_runs SET
         jobs_fetched = ?, jobs_scored = ?, jobs_strong_match = ?,
         jobs_weak_match = ?, jobs_no_match = ?, jobs_duplicate = ?,
-        status = ?, error_log = ?, duration_ms = ?
+        status = ?, error_log = ?, duration_ms = ?,
+        cost_openai_usd = ?, cost_apify_usd = ?
       WHERE id = ?
     `).run(
       jobsFetched, jobsScored, jobsStrongMatch,
       jobsWeakMatch, jobsNoMatch, jobsDuplicate,
       status, errors.length > 0 ? errors.join('\n') : null, durationMs,
+      costOpenAiUsd, costApifyUsd,
       runId,
     );
 

@@ -379,6 +379,18 @@ function runMigrations(db: Database): void {
     console.warn('[db] Migration (search_groups prompt fields) failed (non-fatal):', (err as Error).message);
   }
 
+  // v20: add cost columns to search_runs
+  try {
+    const cols = db.prepare('PRAGMA table_info(search_runs)').all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'cost_openai_usd')) {
+      db.exec(`ALTER TABLE search_runs ADD COLUMN cost_openai_usd REAL`);
+      db.exec(`ALTER TABLE search_runs ADD COLUMN cost_apify_usd REAL`);
+      console.log('[db] Migration v20: search_runs cost columns added');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v20 (cost columns) failed (non-fatal):', (err as Error).message);
+  }
+
   // v19: add schedule_group_ids to settings if missing
   try {
     const cols = db.prepare(`PRAGMA table_info(settings)`).all() as Array<{ name: string }>;
@@ -819,6 +831,8 @@ export interface SearchRunRow {
   error_log: string | null;
   duration_ms: number | null;
   trigger: string;
+  cost_openai_usd: number | null;
+  cost_apify_usd: number | null;
 }
 
 export interface SettingsRow {

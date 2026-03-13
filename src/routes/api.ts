@@ -215,7 +215,7 @@ router.post('/fetch-preview', async (req: Request, res: Response) => {
       const locations: string[] = JSON.parse(group.locations);
       const workModes: string[] = JSON.parse(group.work_modes);
 
-      const jobs = await fetchJobs({ keywords, locations, workModes, jobType: group.job_type }, apifyToken);
+      const { jobs } = await fetchJobs({ keywords, locations, workModes, jobType: group.job_type }, apifyToken);
       for (const j of jobs) {
         allJobs.push({ title: j.title, company: j.company, url: j.url });
       }
