@@ -132,7 +132,7 @@ function mapToJobPosting(item: HarvestJob): JobPosting {
 
 function getPostedLimit(dateRange: DateRange): string {
   if (dateRange === '24h') return '24h';
-  if (dateRange === '7d') return '1 week';
+  if (dateRange === '7d') return 'week';
   return '1 month'; // custom range — filter client-side
 }
 
