@@ -26,6 +26,9 @@ router.post('/', (req: Request, res: Response) => {
   try {
     const body = req.body as Record<string, string | string[]>;
 
+    const provider = String(body.scraping_provider || 'harvestapi');
+    const validProviders = ['harvestapi', 'valig'];
+
     db.prepare(`
       UPDATE settings SET
         ai_model = ?,
@@ -37,6 +40,7 @@ router.post('/', (req: Request, res: Response) => {
         resend_api_key = ?,
         email_from = ?,
         email_enabled = ?,
+        scraping_provider = ?,
         updated_at = ?
       WHERE profile_id = ?
     `).run(
@@ -49,6 +53,7 @@ router.post('/', (req: Request, res: Response) => {
       String(body.resend_api_key || ''),
       String(body.email_from || ''),
       (body.email_enabled === 'on' || body.email_enabled === '1') ? 1 : 0,
+      validProviders.includes(provider) ? provider : 'harvestapi',
       new Date().toISOString(),
       profileId,
     );

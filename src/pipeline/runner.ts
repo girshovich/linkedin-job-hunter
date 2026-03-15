@@ -127,6 +127,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
 
     // Resolve API keys: DB value takes priority, env vars are fallback
     const apifyToken = settings.apify_api_token || config.apifyApiToken;
+    const scrapingProvider = settings.scraping_provider || 'harvestapi';
     const openAiKey = settings.openai_api_key || config.openAiKey;
     const resendApiKey = settings.resend_api_key || config.resendApiKey;
     const emailFrom = settings.email_from || config.emailFrom;
@@ -168,8 +169,8 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
         profile_id, linkedin_job_id, title, company, location, work_mode, description,
         url, posted_date, fetched_at, ai_score, ai_rationale, ai_summary, ai_verdict,
         is_duplicate, duplicate_of_job_id, seen, seen_at, group_id, rejection_category,
-        apply_url
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        apply_url, provider
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertJobLog = db.prepare(`
@@ -218,7 +219,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
           locations,
           workModes,
           jobType: group.job_type,
-        }, apifyToken, dateRange);
+        }, apifyToken, dateRange, scrapingProvider);
         allFetched = fetchResult.jobs;
         if (fetchResult.apifyCostUsd != null) {
           totalApifyCostUsd += fetchResult.apifyCostUsd;
@@ -427,7 +428,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
               0, null, null, 'BLACKLISTED',
               0, null, 0, null,
               group.id, null,
-              job.applyUrl || null,
+              job.applyUrl || null, job.provider || 'harvestapi',
             );
           }
         });
@@ -450,7 +451,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
               isDuplicate ? 1 : 0, duplicateOfId || null,
               isDuplicate ? 1 : 0, isDuplicate ? now : null,
               group.id, scored.rejectionCategory || null,
-              job.applyUrl || null,
+              job.applyUrl || null, job.provider || 'harvestapi',
             );
           }
         });

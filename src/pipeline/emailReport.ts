@@ -230,6 +230,7 @@ export async function sendTestEmail(recipientEmail: string, resendApiKey: string
       applied: 0,
       user_notes: null,
       apply_url: null,
+      provider: 'harvestapi',
     },
   ];
 

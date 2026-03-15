@@ -325,6 +325,28 @@ function runMigrations(db: Database): void {
     console.warn('[db] Migration (apply_url column) failed (non-fatal):', (err as Error).message);
   }
 
+  // v21: add scraping_provider to settings
+  try {
+    const cols = db.prepare(`PRAGMA table_info(settings)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'scraping_provider')) {
+      db.exec(`ALTER TABLE settings ADD COLUMN scraping_provider TEXT NOT NULL DEFAULT 'harvestapi'`);
+      console.log('[db] Migration v21: settings.scraping_provider column added');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v21 (scraping_provider) failed (non-fatal):', (err as Error).message);
+  }
+
+  // v21: add provider to jobs
+  try {
+    const cols = db.prepare(`PRAGMA table_info(jobs)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'provider')) {
+      db.exec(`ALTER TABLE jobs ADD COLUMN provider TEXT NOT NULL DEFAULT 'harvestapi'`);
+      console.log('[db] Migration v21: jobs.provider column added');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v21 (jobs.provider) failed (non-fatal):', (err as Error).message);
+  }
+
   // v16: add structured prompt fields to settings
   try {
     const cols = db.prepare(`PRAGMA table_info(settings)`).all() as Array<{ name: string }>;
@@ -613,6 +635,7 @@ function initSchema(db: Database): void {
       seen                  INTEGER NOT NULL DEFAULT 0,
       seen_at               TEXT,
       group_id              INTEGER REFERENCES search_groups(id),
+      provider              TEXT    NOT NULL DEFAULT 'harvestapi',
       FOREIGN KEY (duplicate_of_job_id) REFERENCES jobs(id)
     );
 
@@ -697,6 +720,7 @@ function initSchema(db: Database): void {
       scoring_criteria       TEXT    NOT NULL DEFAULT '',
       scoring_guide          TEXT    NOT NULL DEFAULT '',
       no_match_criteria      TEXT    NOT NULL DEFAULT '',
+      scraping_provider      TEXT    NOT NULL DEFAULT 'harvestapi',
       updated_at             TEXT    NOT NULL DEFAULT ''
     );
   `);
@@ -815,6 +839,7 @@ export interface JobRow {
   applied: number;
   user_notes: string | null;
   apply_url: string | null;
+  provider: string;
 }
 
 export interface SearchRunRow {
@@ -862,8 +887,9 @@ export interface SettingsRow {
   scoring_criteria: string;
   scoring_guide: string;
   no_match_criteria: string;
-  schedule_date_range: string;  // '24h' | '7d'
+  schedule_date_range: string;  // '24h' | '7d' | 'month'
   schedule_group_ids: string;   // JSON number[] | '' for all active
+  scraping_provider: string;    // 'harvestapi' | 'valig'
   updated_at: string;
 }
 

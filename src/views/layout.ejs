@@ -303,6 +303,10 @@
                     class="sched-dr-btn flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors">
               Last 7 days
             </button>
+            <button type="button" id="sched-dr-month" onclick="setSchedDateRange('month')"
+                    class="sched-dr-btn flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors">
+              Month
+            </button>
           </div>
         </div>
         <p id="sched-modal-msg" class="hidden text-xs"></p>
@@ -402,22 +406,10 @@
                     class="run-dr-btn flex-1 py-1.5 px-2 rounded-lg border text-sm font-medium transition-colors">
               Last 7 days
             </button>
-            <button type="button" id="run-dr-custom" onclick="setRunDateRange('custom')"
+            <button type="button" id="run-dr-month" onclick="setRunDateRange('month')"
                     class="run-dr-btn flex-1 py-1.5 px-2 rounded-lg border text-sm font-medium transition-colors">
-              Custom
+              Month
             </button>
-          </div>
-          <div id="run-dr-custom-inputs" class="hidden flex gap-3">
-            <div class="flex-1">
-              <label class="block text-xs text-gray-500 mb-0.5">From</label>
-              <input type="date" id="run-dr-from"
-                     class="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div class="flex-1">
-              <label class="block text-xs text-gray-500 mb-0.5">To</label>
-              <input type="date" id="run-dr-to"
-                     class="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500">
-            </div>
           </div>
         </div>
         <p id="run-modal-msg" class="hidden text-xs text-red-600"></p>
@@ -726,7 +718,6 @@
         btn.classList.toggle('border-gray-300', !isActive);
         btn.classList.toggle('hover:bg-gray-50', !isActive);
       });
-      document.getElementById('run-dr-custom-inputs')?.classList.toggle('hidden', range !== 'custom');
     }
 
     function renderRunGroups(groups) {
@@ -735,14 +726,32 @@
         container.innerHTML = '<span class="text-sm text-gray-400">No roles configured.</span>';
         return;
       }
-      container.innerHTML = groups.map(g => `
-        <label class="flex items-center gap-3 cursor-pointer py-1.5 hover:bg-gray-50 rounded-lg px-1">
-          <input type="checkbox" class="run-group-check w-4 h-4 rounded accent-blue-600"
-                 value="${g.id}" ${g.is_active ? 'checked' : ''}>
-          <span class="text-sm text-gray-800 flex-1">${escHtml(g.group_name || 'Role #' + g.id)}</span>
-          ${!g.is_active ? '<span class="text-xs text-gray-400 italic">inactive</span>' : ''}
-        </label>
-      `).join('');
+      container.innerHTML = groups.map(g => {
+        const on = !!g.is_active;
+        return `
+          <div class="flex items-center justify-between py-2 px-1">
+            <span class="text-sm text-gray-800">${escHtml(g.group_name || 'Role #' + g.id)}</span>
+            <label class="flex items-center cursor-pointer">
+              <input type="checkbox" class="run-group-check sr-only" value="${g.id}"
+                     ${on ? 'checked' : ''} onchange="onRunGroupToggle(this)" />
+              <div class="relative w-8 h-4 rounded-full transition-colors ${on ? 'bg-emerald-500' : 'bg-gray-300'}">
+                <div class="absolute top-0.5 ${on ? 'left-4' : 'left-0.5'} w-3 h-3 bg-white rounded-full shadow transition-all"></div>
+              </div>
+            </label>
+          </div>`;
+      }).join('');
+    }
+
+    function onRunGroupToggle(checkbox) {
+      const track = checkbox.nextElementSibling;
+      const thumb = track.firstElementChild;
+      if (checkbox.checked) {
+        track.classList.replace('bg-gray-300', 'bg-emerald-500');
+        thumb.classList.replace('left-0.5', 'left-4');
+      } else {
+        track.classList.replace('bg-emerald-500', 'bg-gray-300');
+        thumb.classList.replace('left-4', 'left-0.5');
+      }
     }
 
     async function openRunModal() {
@@ -766,39 +775,32 @@
     }
 
     async function submitRun() {
-      const checks = document.querySelectorAll('.run-group-check:checked');
-      const groupIds = Array.from(checks).map(c => parseInt(c.value, 10));
+      const allToggles = document.querySelectorAll('.run-group-check');
+      const groupStates = Array.from(allToggles).map(c => ({
+        id: parseInt(c.value, 10),
+        is_active: c.checked,
+      }));
 
-      let dateRange;
-      if (_runDateRange === 'custom') {
-        const from = document.getElementById('run-dr-from').value;
-        const to = document.getElementById('run-dr-to').value;
-        if (!from || !to) {
-          const msgEl = document.getElementById('run-modal-msg');
-          msgEl.textContent = 'Select both from and to dates.';
-          msgEl.classList.remove('hidden');
-          return;
-        }
-        if (from > to) {
-          const msgEl = document.getElementById('run-modal-msg');
-          msgEl.textContent = '"From" date must be before "To" date.';
-          msgEl.classList.remove('hidden');
-          return;
-        }
-        dateRange = { from, to };
-      } else {
-        dateRange = _runDateRange;
-      }
+      const dateRange = _runDateRange;
 
       const submitBtn = document.getElementById('run-modal-submit');
       submitBtn.disabled = true;
       submitBtn.textContent = 'Starting…';
 
       try {
+        // Save is_active states (syncs with settings page)
+        await Promise.all(groupStates.map(({ id, is_active }) =>
+          fetch('/api/groups/' + id, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_active }),
+          })
+        ));
+
         const res = await fetch('/api/run', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ groupIds, dateRange }),
+          body: JSON.stringify({ dateRange }),
         });
         const data = await res.json();
 

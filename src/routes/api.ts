@@ -71,14 +71,8 @@ router.post('/run', async (req: Request, res: Response) => {
 
   // Parse optional dateRange
   let dateRange: DateRange = '24h';
-  if (b.dateRange === '7d') {
-    dateRange = '7d';
-  } else if (b.dateRange && typeof b.dateRange === 'object') {
-    const dr = b.dateRange as Record<string, unknown>;
-    if (typeof dr.from === 'string' && typeof dr.to === 'string') {
-      dateRange = { from: dr.from, to: dr.to };
-    }
-  }
+  if (b.dateRange === '7d') dateRange = '7d';
+  else if (b.dateRange === 'month') dateRange = 'month';
 
   const runOptions: RunOptions = { groupIds, dateRange };
 
@@ -207,6 +201,7 @@ router.post('/fetch-preview', async (req: Request, res: Response) => {
       return;
     }
 
+    const scrapingProvider = settings.scraping_provider || 'harvestapi';
     const allJobs: Array<{ title: string; company: string; url: string }> = [];
 
     for (const group of groups) {
@@ -216,7 +211,7 @@ router.post('/fetch-preview', async (req: Request, res: Response) => {
       const locations: string[] = JSON.parse(group.locations);
       const workModes: string[] = JSON.parse(group.work_modes);
 
-      const { jobs } = await fetchJobs({ keywords, locations, workModes, jobType: group.job_type }, apifyToken);
+      const { jobs } = await fetchJobs({ keywords, locations, workModes, jobType: group.job_type }, apifyToken, '24h', scrapingProvider);
       for (const j of jobs) {
         allJobs.push({ title: j.title, company: j.company, url: j.url });
       }

@@ -114,7 +114,7 @@ function verdictChip(verdict, rejectionCategory) {
           class="text-sm font-bold text-emerald-600 hover:text-emerald-700 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-emerald-50 transition-colors"
           title="Run costs"
         >$</button>
-        <div id="cost-popup-<%= run.id %>" class="hidden absolute right-0 top-full mt-1 z-10 bg-white border border-gray-200 rounded-xl shadow-lg p-3 text-xs min-w-[170px]">
+        <div id="cost-popup-<%= run.id %>" class="hidden fixed z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-3 text-xs min-w-[170px]">
           <% if (run.cost_openai_usd != null) { %>
           <div class="flex justify-between gap-6 text-gray-600">
             <span>OpenAI</span>
@@ -228,9 +228,15 @@ function verdictChip(verdict, rejectionCategory) {
 <script>
 function toggleCostPopup(runId) {
   const popup = document.getElementById('cost-popup-' + runId);
+  const btn = popup.previousElementSibling;
   const isHidden = popup.classList.contains('hidden');
   document.querySelectorAll('[id^="cost-popup-"]').forEach(el => el.classList.add('hidden'));
-  if (isHidden) popup.classList.remove('hidden');
+  if (isHidden) {
+    const rect = btn.getBoundingClientRect();
+    popup.style.top = (rect.bottom + 4) + 'px';
+    popup.style.right = (window.innerWidth - rect.right) + 'px';
+    popup.classList.remove('hidden');
+  }
 }
 document.addEventListener('click', () => {
   document.querySelectorAll('[id^="cost-popup-"]').forEach(el => el.classList.add('hidden'));
