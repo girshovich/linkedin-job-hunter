@@ -220,10 +220,12 @@ export async function scoreJobs(
   jobs: JobPosting[],
   settings: SettingsRow,
   openAiKey: string,
+  onProgress?: (done: number, total: number) => void,
 ): Promise<{ jobs: ScoredJob[]; tokenUsage: TokenUsage }> {
   const results: ScoredJob[] = [];
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
+  let jobsDone = 0;
 
   for (const job of jobs) {
     let callResult: { result: ScoringLlmOutput; usage: TokenUsage } | null = null;
@@ -250,6 +252,9 @@ export async function scoreJobs(
         continue;
       }
     }
+
+    jobsDone++;
+    onProgress?.(jobsDone, jobs.length);
 
     if (!callResult) continue;
 

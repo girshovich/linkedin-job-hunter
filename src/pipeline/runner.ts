@@ -45,14 +45,22 @@ function matchesTitleFilter(title: string, filter: string): boolean {
 const isRunningMap = new Map<number, boolean>();
 const lastRunResultMap = new Map<number, PipelineResult | null>();
 
+interface StageInfo { text: string; pct: number; totalSections: number; }
+const runStageMap = new Map<number, StageInfo>();
+
+function setStage(profileId: number, text: string, pct: number, totalSections: number): void {
+  runStageMap.set(profileId, { text, pct, totalSections });
+}
+
 export function getIsRunning(profileId: number = 1): boolean {
   return isRunningMap.get(profileId) ?? false;
 }
 
-export function getRunStatus(profileId: number = 1): { isRunning: boolean; lastRun: PipelineResult | null } {
+export function getRunStatus(profileId: number = 1) {
   return {
     isRunning: isRunningMap.get(profileId) ?? false,
     lastRun: lastRunResultMap.get(profileId) ?? null,
+    stage: runStageMap.get(profileId) ?? null,
   };
 }
 
@@ -133,7 +141,19 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
       .all(profileId) as BlacklistedCompanyRow[];
     const blacklistNames = new Set(blacklist.map((b) => b.company_name.toLowerCase().trim()));
 
+    const { groupIds, dateRange = '24h' } = options;
+
     console.log(`[runner] Starting pipeline (${trigger}) — ${groups.length} group(s), ${blacklist.length} blacklisted company(ies)`);
+
+    // Pre-compute active groups for progress tracking
+    const activeGroups = groups.filter((g) =>
+      g.is_active && (!groupIds || groupIds.length === 0 || groupIds.includes(g.id))
+    );
+    const totalSections = activeGroups.length + 2; // Starting + one per active group + AI Scoring
+    const sw = 100 / totalSections;
+    let activeGroupIdx = 0;
+    let hasScoringStageSet = false;
+    setStage(profileId, 'Starting', 0, totalSections);
 
     // Insert search_runs row NOW to get a stable run_id for job logs
     runId = db.prepare(
@@ -170,8 +190,6 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
     // Persists across groups so cross-group same-run duplicates are also caught.
     const seenStrongInRun = new Set<string>();
 
-    const { groupIds, dateRange = '24h' } = options;
-
     // --- Per-group loop ---
     for (const group of groups) {
       if (!group.is_active) {
@@ -192,6 +210,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
       );
 
       // 1. Fetch
+      setStage(profileId, 'Fetching Jobs', Math.round((1 + activeGroupIdx) * sw), totalSections);
       let allFetched: JobPosting[] = [];
       try {
         const fetchResult = await fetchJobs({
@@ -303,6 +322,10 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
 
       let scoredJobs: ScoredJob[] = [];
       if (newJobs.length > 0) {
+        if (!hasScoringStageSet) {
+          setStage(profileId, 'AI Scoring', Math.round((totalSections - 1) * sw), totalSections);
+          hasScoringStageSet = true;
+        }
         const scoreResult = await scoreJobs(newJobs, scoringSettings, openAiKey);
         scoredJobs = scoreResult.jobs;
         jobsScored += scoredJobs.length;
@@ -433,6 +456,8 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
         });
         console.log(`[runner] Group ${group.id}: stored ${jobResults.length} jobs.`);
       }
+
+      activeGroupIdx++;
     }
 
     // 7. Send email report
@@ -520,5 +545,6 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
 
   } finally {
     isRunningMap.set(profileId, false);
+    runStageMap.delete(profileId);
   }
 }

@@ -93,7 +93,7 @@ router.post('/run', async (req: Request, res: Response) => {
 // Pipeline status (used by Run Now polling)
 router.get('/status', (req: Request, res: Response) => {
   const profileId = req.profile.id;
-  const { isRunning, lastRun } = getRunStatus(profileId);
+  const { isRunning, lastRun, stage } = getRunStatus(profileId);
 
   // Also fetch the latest DB run for the dashboard card
   const db = getDb();
@@ -104,6 +104,7 @@ router.get('/status', (req: Request, res: Response) => {
   res.json({
     isRunning,
     lastRun: lastRun || lastDbRun || null,
+    stage: stage || null,
   });
 });
 

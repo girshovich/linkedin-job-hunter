@@ -134,10 +134,11 @@ function statusColor(s) {
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
       </svg>
-      <span id="home-run-status-text">Pipeline running…</span>
+      <span id="home-run-status-text">Starting</span>
     </div>
-    <div class="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-      <div id="home-run-bar" class="h-full bg-emerald-500 rounded-full transition-all duration-1000" style="width:5%"></div>
+    <div class="relative mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+      <div id="home-run-bar" class="h-full bg-emerald-500 transition-all duration-700" style="width:0%"></div>
+      <div id="home-run-dividers" class="absolute inset-0 pointer-events-none"></div>
     </div>
   </div>
   <div id="home-run-result" class="hidden mt-4 text-sm"></div>
@@ -311,6 +312,53 @@ async function homeRun(btn) {
   openRunModal();
 }
 
+let _dividerSections = 0;
+function updateDividers(totalSections) {
+  if (totalSections === _dividerSections) return;
+  _dividerSections = totalSections;
+  const container = document.getElementById('home-run-dividers');
+  container.innerHTML = '';
+  for (let i = 1; i < totalSections; i++) {
+    const line = document.createElement('div');
+    line.className = 'absolute top-0 bottom-0 w-px bg-white/60';
+    line.style.left = (i / totalSections * 100) + '%';
+    container.appendChild(line);
+  }
+}
+
+function startPolling(btn) {
+  const label = document.getElementById('home-run-label');
+  const progress = document.getElementById('home-run-progress');
+  const bar = document.getElementById('home-run-bar');
+  const statusText = document.getElementById('home-run-status-text');
+  if (homeRunPoller) clearInterval(homeRunPoller);
+  homeRunPoller = setInterval(async () => {
+    try {
+      const res = await fetch('/api/status');
+      const data = await res.json();
+      if (data.stage) {
+        bar.style.width = data.stage.pct + '%';
+        statusText.textContent = data.stage.text;
+        if (data.stage.totalSections) updateDividers(data.stage.totalSections);
+      }
+      if (!data.isRunning && data.lastRun) {
+        clearInterval(homeRunPoller);
+        bar.style.transition = 'width 0.4s ease';
+        bar.style.width = '100%';
+        const r = data.lastRun;
+        const ok = r.status === 'success' || r.status === 'partial_error';
+        const tookSec = r.duration_ms ? ` (${(r.duration_ms / 1000).toFixed(0)}s)` : '';
+        showRunResult(
+          ok ? `Done${tookSec} — fetched ${r.jobs_fetched}, strong matches: ${r.jobs_strong_match}. <a href="/" class="underline font-medium">Refresh</a>` : `Failed: ${r.error_log || 'unknown error'}`,
+          ok,
+        );
+        resetRunBtn(btn, label, progress);
+        if (ok) setTimeout(() => location.reload(), 3000);
+      }
+    } catch (_) {}
+  }, 2000);
+}
+
 function startHomeProgress(btn) {
   const label = document.getElementById('home-run-label');
   const progress = document.getElementById('home-run-progress');
@@ -323,45 +371,9 @@ function startHomeProgress(btn) {
   label.textContent = 'Running…';
   progress.classList.remove('hidden');
   result.classList.add('hidden');
-  bar.style.transition = 'none';
-  bar.style.width = '2%';
-
-  let expectedMs = 90_000;
-  fetch('/api/status').then(s => s.json()).then(sd => {
-    const lastDuration = sd.lastRun?.duration_ms ?? sd.lastRun?.durationMs;
-    if (lastDuration && lastDuration > 0) expectedMs = lastDuration;
-  }).catch(() => {}).finally(() => {
-    const barDurationMs = Math.round(expectedMs * 0.9);
-    requestAnimationFrame(() => {
-      bar.style.transition = `width ${barDurationMs}ms linear`;
-      bar.style.width = '90%';
-    });
-
-    const messages = ['Fetching jobs from LinkedIn…','Scoring jobs with AI…','Running semantic dedup…','Generating summaries…','Sending email report…'];
-    const msgInterval = barDurationMs / messages.length;
-    messages.forEach((msg, i) => { setTimeout(() => { statusText.textContent = msg; }, i * msgInterval); });
-
-    homeRunPoller = setInterval(async () => {
-      try {
-        const res = await fetch('/api/status');
-        const data = await res.json();
-        if (!data.isRunning && data.lastRun) {
-          clearInterval(homeRunPoller);
-          bar.style.transition = 'width 0.4s ease';
-          bar.style.width = '100%';
-          const r = data.lastRun;
-          const ok = r.status === 'success' || r.status === 'partial_error';
-          const tookSec = r.duration_ms ? ` (${(r.duration_ms / 1000).toFixed(0)}s)` : '';
-          showRunResult(
-            ok ? `Done${tookSec} — fetched ${r.jobs_fetched}, strong matches: ${r.jobs_strong_match}. <a href="/" class="underline font-medium">Refresh</a>` : `Failed: ${r.error_log || 'unknown error'}`,
-            ok,
-          );
-          resetRunBtn(btn, label, progress);
-          if (ok) setTimeout(() => location.reload(), 3000);
-        }
-      } catch (_) {}
-    }, 3000);
-  });
+  bar.style.width = '0%';
+  statusText.textContent = 'Starting';
+  startPolling(btn);
 }
 
 function showRunResult(msg, success) {
@@ -440,7 +452,14 @@ fetch('/api/status').then(r => r.json()).then(data => {
     btn.disabled = true;
     btn.classList.add('opacity-60', 'cursor-not-allowed');
     document.getElementById('home-run-label').textContent = 'Running…';
-    document.getElementById('home-run-progress').classList.remove('hidden');
+    const progress = document.getElementById('home-run-progress');
+    progress.classList.remove('hidden');
+    if (data.stage) {
+      document.getElementById('home-run-bar').style.width = data.stage.pct + '%';
+      document.getElementById('home-run-status-text').textContent = data.stage.text;
+      if (data.stage.totalSections) updateDividers(data.stage.totalSections);
+    }
+    startPolling(btn);
   }
 }).catch(() => {});
 
