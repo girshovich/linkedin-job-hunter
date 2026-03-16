@@ -37,7 +37,7 @@ Each pipeline run (scheduled or manual):
 
 **1. Clone and install**
 ```bash
-git clone https://github.com/arktwendar/Job-Hunter.git
+git clone https://github.com/girshovich/Job-Hunter.git
 cd Job-Hunter
 npm install
 ```
