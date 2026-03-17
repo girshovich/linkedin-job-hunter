@@ -41,7 +41,7 @@ function formatDate(iso) {
 
 <!-- Job header card -->
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
-  <div class="flex items-start justify-between gap-4 flex-wrap">
+  <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
     <div class="flex-1 min-w-0">
       <!-- Badges -->
       <div class="flex items-center gap-2 flex-wrap mb-3">
@@ -86,9 +86,9 @@ function formatDate(iso) {
     </div>
 
     <!-- Score + link -->
-    <div class="flex flex-col items-center gap-3">
+    <div class="flex flex-row md:flex-col items-center gap-3 flex-wrap">
       <div class="text-center">
-        <div class="text-4xl font-black score-badge <%= scoreTextColor(job.ai_score) %> px-5 py-3 rounded-xl border">
+        <div class="text-2xl md:text-4xl font-black score-badge <%= scoreTextColor(job.ai_score) %> px-3 py-2 md:px-5 md:py-3 rounded-xl border">
           <%= job.ai_score %>%
         </div>
         <p class="text-xs text-gray-400 mt-1">Relevance Score</p>
@@ -110,13 +110,13 @@ function formatDate(iso) {
       <!-- Applied toggle -->
       <% if (job.applied) { %>
       <button id="applied-btn" onclick="toggleApplied()"
-              class="w-full inline-flex items-center justify-center gap-2 text-sm font-semibold px-4 py-2 rounded-lg border-2 transition-colors bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700">
+              class="md:w-full inline-flex items-center justify-center gap-2 text-sm font-semibold px-4 py-2 rounded-lg border-2 transition-colors bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
         Applied
       </button>
       <% } else { %>
       <button id="applied-btn" onclick="toggleApplied()"
-              class="w-full inline-flex items-center justify-center gap-2 text-sm font-semibold px-4 py-2 rounded-lg border-2 transition-colors bg-white border-blue-400 text-blue-600 hover:bg-blue-50">
+              class="md:w-full inline-flex items-center justify-center gap-2 text-sm font-semibold px-4 py-2 rounded-lg border-2 transition-colors bg-white border-blue-400 text-blue-600 hover:bg-blue-50">
         Mark as Applied
       </button>
       <% } %>
@@ -266,10 +266,10 @@ async function toggleApplied() {
   _applied = !_applied;
   const btn = document.getElementById('applied-btn');
   if (_applied) {
-    btn.className = 'w-full inline-flex items-center justify-center gap-2 text-sm font-semibold px-4 py-2 rounded-lg border-2 transition-colors bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700';
+    btn.className = 'md:w-full inline-flex items-center justify-center gap-2 text-sm font-semibold px-4 py-2 rounded-lg border-2 transition-colors bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700';
     btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>Applied';
   } else {
-    btn.className = 'w-full inline-flex items-center justify-center gap-2 text-sm font-semibold px-4 py-2 rounded-lg border-2 transition-colors bg-white border-blue-400 text-blue-600 hover:bg-blue-50';
+    btn.className = 'md:w-full inline-flex items-center justify-center gap-2 text-sm font-semibold px-4 py-2 rounded-lg border-2 transition-colors bg-white border-blue-400 text-blue-600 hover:bg-blue-50';
     btn.innerHTML = 'Mark as Applied';
   }
   await fetch('/api/jobs/' + _jobId + '/applied', {
