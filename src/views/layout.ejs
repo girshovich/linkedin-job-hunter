@@ -175,7 +175,49 @@
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
       <span class="text-[10px] font-medium">Settings</span>
     </a>
+    <button onclick="openProfileSheet()" class="flex-1 flex flex-col items-center justify-center gap-0.5">
+      <div class="relative">
+        <div class="w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold <%= activeProfile.id === 1 ? 'bg-blue-500' : 'bg-pink-400' %>">
+          <%= activeProfile.id === 1 ? 'M' : 'A' %>
+        </div>
+        <span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-gray-900 <%= activeProfile.id === 1 ? 'bg-blue-400' : 'bg-pink-300' %>"></span>
+      </div>
+    </button>
   </nav>
+
+  <!-- Profile bottom sheet (mobile only) -->
+  <div id="profile-sheet" class="md:hidden hidden fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/50" onclick="closeProfileSheet()"></div>
+    <div class="absolute bottom-16 left-0 right-0 bg-gray-900 rounded-t-2xl border-t border-gray-700 px-4 pt-4 pb-6">
+      <p class="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-3 px-1">Switch Profile</p>
+      <form method="POST" action="/api/profile/switch">
+        <input type="hidden" name="profile_id" value="1" />
+        <button type="submit" class="w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-colors <%= activeProfile.id === 1 ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5' %>">
+          <div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">M</div>
+          <span class="font-medium text-sm">Mikhail</span>
+          <% if (activeProfile.id === 1) { %>
+          <svg class="w-4 h-4 text-emerald-400 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+          <% } %>
+        </button>
+      </form>
+      <form method="POST" action="/api/profile/switch">
+        <input type="hidden" name="profile_id" value="2" />
+        <button type="submit" class="w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-colors <%= activeProfile.id === 2 ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5' %>">
+          <div class="w-8 h-8 rounded-full bg-pink-400 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">A</div>
+          <span class="font-medium text-sm">Arina</span>
+          <% if (activeProfile.id === 2) { %>
+          <svg class="w-4 h-4 text-emerald-400 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+          <% } %>
+        </button>
+      </form>
+      <div class="border-t border-gray-700 mt-3 pt-3">
+        <a href="/settings" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-400 hover:bg-white/5 transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+          <span class="text-sm font-medium">Settings</span>
+        </a>
+      </div>
+    </div>
+  </div>
 
   <!-- Confirm modal -->
   <div id="jh-confirm-modal" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4">
@@ -999,6 +1041,13 @@
       } catch (e) {
         await showAlert('Could not reach the server. Make sure the app is running and try again.');
       }
+    }
+
+    function openProfileSheet() {
+      document.getElementById('profile-sheet').classList.remove('hidden');
+    }
+    function closeProfileSheet() {
+      document.getElementById('profile-sheet').classList.add('hidden');
     }
   </script>
 </body>
