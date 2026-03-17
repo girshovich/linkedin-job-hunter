@@ -115,6 +115,12 @@ function verdictChip(verdict, rejectionCategory) {
           title="Run costs"
         >$</button>
         <div id="cost-popup-<%= run.id %>" class="hidden fixed z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-3 text-xs min-w-[170px]">
+          <% if (run.scraping_provider) { %>
+          <div class="flex justify-between gap-6 text-gray-500 pb-1.5 mb-1.5 border-b border-gray-100">
+            <span>Provider</span>
+            <span class="font-medium text-gray-700"><%= run.scraping_provider === 'harvestapi' ? 'HarvestAPI' : run.scraping_provider.charAt(0).toUpperCase() + run.scraping_provider.slice(1) %></span>
+          </div>
+          <% } %>
           <% if (run.cost_openai_usd != null) { %>
           <div class="flex justify-between gap-6 text-gray-600">
             <span>OpenAI</span>

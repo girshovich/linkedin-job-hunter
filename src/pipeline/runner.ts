@@ -158,8 +158,8 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
 
     // Insert search_runs row NOW to get a stable run_id for job logs
     runId = db.prepare(
-      `INSERT INTO search_runs (profile_id, ran_at, status, trigger) VALUES (?, ?, 'running', ?)`
-    ).run(profileId, ranAt, trigger).lastInsertRowid as number;
+      `INSERT INTO search_runs (profile_id, ran_at, status, trigger, scraping_provider) VALUES (?, ?, 'running', ?, ?)`
+    ).run(profileId, ranAt, trigger, scrapingProvider).lastInsertRowid as number;
 
     console.log(`[runner] Run ID: ${runId}`);
 

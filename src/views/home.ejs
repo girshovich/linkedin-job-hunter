@@ -446,22 +446,24 @@ function escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-fetch('/api/status').then(r => r.json()).then(data => {
-  if (data.isRunning) {
-    const btn = document.getElementById('home-run-btn');
-    btn.disabled = true;
-    btn.classList.add('opacity-60', 'cursor-not-allowed');
-    document.getElementById('home-run-label').textContent = 'Running…';
-    const progress = document.getElementById('home-run-progress');
-    progress.classList.remove('hidden');
-    if (data.stage) {
-      document.getElementById('home-run-bar').style.width = data.stage.pct + '%';
-      document.getElementById('home-run-status-text').textContent = data.stage.text;
-      if (data.stage.totalSections) updateDividers(data.stage.totalSections);
-    }
-    startPolling(btn);
+function syncRunState(data) {
+  if (!data.isRunning) return;
+  const btn = document.getElementById('home-run-btn');
+  btn.disabled = true;
+  btn.classList.add('opacity-60', 'cursor-not-allowed');
+  document.getElementById('home-run-label').textContent = 'Running…';
+  document.getElementById('home-run-progress').classList.remove('hidden');
+  if (data.stage) {
+    document.getElementById('home-run-bar').style.width = data.stage.pct + '%';
+    document.getElementById('home-run-status-text').textContent = data.stage.text;
+    if (data.stage.totalSections) updateDividers(data.stage.totalSections);
   }
-}).catch(() => {});
+  startPolling(btn);
+}
+fetch('/api/status').then(r => r.json()).then(syncRunState).catch(() => {});
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) fetch('/api/status').then(r => r.json()).then(syncRunState).catch(() => {});
+});
 
 // ── Getting Started panel ──
 const GS_ALL_DONE = <%- (checklist.hasGroups && checklist.hasRun && checklist.hasSchedule) ? 'true' : 'false' %>;

@@ -347,6 +347,17 @@ function runMigrations(db: Database): void {
     console.warn('[db] Migration v21 (jobs.provider) failed (non-fatal):', (err as Error).message);
   }
 
+  // v22: add scraping_provider to search_runs
+  try {
+    const cols = db.prepare('PRAGMA table_info(search_runs)').all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'scraping_provider')) {
+      db.exec(`ALTER TABLE search_runs ADD COLUMN scraping_provider TEXT`);
+      console.log('[db] Migration v22: search_runs.scraping_provider column added');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v22 (search_runs.scraping_provider) failed (non-fatal):', (err as Error).message);
+  }
+
   // v16: add structured prompt fields to settings
   try {
     const cols = db.prepare(`PRAGMA table_info(settings)`).all() as Array<{ name: string }>;
@@ -858,6 +869,7 @@ export interface SearchRunRow {
   trigger: string;
   cost_openai_usd: number | null;
   cost_apify_usd: number | null;
+  scraping_provider: string | null;
 }
 
 export interface SettingsRow {
