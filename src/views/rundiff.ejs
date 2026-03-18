@@ -46,11 +46,13 @@ function scoreColor(score) {
   <div class="bg-white border border-gray-200 rounded-xl px-5 py-4">
     <p class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-1">Newer run #<%= runNewer.id %></p>
     <p class="text-sm font-semibold text-gray-900"><%= fmtDate(runNewer.ran_at) %></p>
+    <% if (runNewer.scraping_provider) { %><p class="text-xs text-gray-400 mt-0.5"><%= runNewer.scraping_provider %></p><% } %>
     <p class="text-xs text-gray-500 mt-1"><%= onlyInNewer.length + inBoth.length %> unique jobs logged</p>
   </div>
   <div class="bg-white border border-gray-200 rounded-xl px-5 py-4">
     <p class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-1">Older run #<%= runOlder.id %></p>
     <p class="text-sm font-semibold text-gray-900"><%= fmtDate(runOlder.ran_at) %></p>
+    <% if (runOlder.scraping_provider) { %><p class="text-xs text-gray-400 mt-0.5"><%= runOlder.scraping_provider %></p><% } %>
     <p class="text-xs text-gray-500 mt-1"><%= onlyInOlder.length + inBoth.length %> unique jobs logged</p>
   </div>
 </div>
@@ -77,30 +79,13 @@ function scoreColor(score) {
       <svg class="w-4 h-4 text-gray-400 flex-shrink-0 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
       </svg>
-      <span class="font-semibold text-gray-900 text-sm">New this run</span>
+      <span class="font-semibold text-gray-900 text-sm">Only in new run</span>
       <span class="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-medium"><%= onlyInNewer.length %></span>
     </div>
-    <span class="text-xs text-gray-400">only in run #<%= runNewer.id %></span>
+    <span class="text-xs text-gray-400">run #<%= runNewer.id %></span>
   </summary>
   <div class="border-t border-gray-100">
     <%- jobTable(onlyInNewer) %>
-  </div>
-</details>
-
-<!-- Dropped since last run -->
-<details class="group bg-white rounded-xl border border-orange-200 shadow-sm overflow-hidden">
-  <summary class="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none hover:bg-orange-50/50 transition-colors">
-    <div class="flex items-center gap-3">
-      <svg class="w-4 h-4 text-gray-400 flex-shrink-0 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-      </svg>
-      <span class="font-semibold text-gray-900 text-sm">Dropped since last run</span>
-      <span class="text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full font-medium"><%= onlyInOlder.length %></span>
-    </div>
-    <span class="text-xs text-gray-400">only in run #<%= runOlder.id %></span>
-  </summary>
-  <div class="border-t border-gray-100">
-    <%- jobTable(onlyInOlder) %>
   </div>
 </details>
 
@@ -114,10 +99,27 @@ function scoreColor(score) {
       <span class="font-semibold text-gray-900 text-sm">Seen in both runs</span>
       <span class="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full font-medium"><%= inBoth.length %></span>
     </div>
-    <span class="text-xs text-gray-400">runs #<%= runOlder.id %> and #<%= runNewer.id %></span>
+    <span class="text-xs text-gray-400">verdict from run #<%= runOlder.id %></span>
   </summary>
   <div class="border-t border-gray-100">
     <%- jobTable(inBoth) %>
+  </div>
+</details>
+
+<!-- Only in previous run -->
+<details class="group bg-white rounded-xl border border-orange-200 shadow-sm overflow-hidden">
+  <summary class="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none hover:bg-orange-50/50 transition-colors">
+    <div class="flex items-center gap-3">
+      <svg class="w-4 h-4 text-gray-400 flex-shrink-0 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+      </svg>
+      <span class="font-semibold text-gray-900 text-sm">Only in previous run</span>
+      <span class="text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full font-medium"><%= onlyInOlder.length %></span>
+    </div>
+    <span class="text-xs text-gray-400">run #<%= runOlder.id %></span>
+  </summary>
+  <div class="border-t border-gray-100">
+    <%- jobTable(onlyInOlder) %>
   </div>
 </details>
 

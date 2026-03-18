@@ -94,7 +94,8 @@ router.get('/', (req: Request, res: Response) => {
 
   const onlyInNewer = sortJobs(newer.filter((l) => !idsOlder.has(l.linkedin_job_id)));
   const onlyInOlder = sortJobs(older.filter((l) => !idsNewer.has(l.linkedin_job_id)));
-  const inBoth      = sortJobs(newer.filter((l) =>  idsOlder.has(l.linkedin_job_id)));
+  // inBoth uses older run's data so verdict reflects first time it was seen
+  const inBoth      = sortJobs(older.filter((l) =>  idsNewer.has(l.linkedin_job_id)));
 
   res.render('rundiff', {
     title: 'Run Diff',
