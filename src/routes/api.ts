@@ -706,52 +706,5 @@ router.delete('/blacklist/:id', (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
-// GET /api/run-diff — compare jobs from the last 2 pipeline runs
-router.get('/run-diff', (req: Request, res: Response) => {
-  const db = getDb();
-  const profileId = req.profile.id;
-
-  const runs = db
-    .prepare('SELECT id, ran_at, jobs_fetched, jobs_scored, status FROM search_runs WHERE profile_id = ? ORDER BY ran_at DESC LIMIT 2')
-    .all(profileId) as Array<{ id: number; ran_at: string; jobs_fetched: number; jobs_scored: number; status: string }>;
-
-  if (runs.length < 2) {
-    res.json({ success: false, error: 'Need at least 2 runs to compare. Only ' + runs.length + ' run(s) found.' });
-    return;
-  }
-
-  const [runA, runB] = runs; // runA = most recent, runB = second most recent
-
-  type LogEntry = { linkedin_job_id: string; title: string; company: string; location: string | null; ai_score: number | null; ai_verdict: string; url: string | null };
-
-  const logsA = db
-    .prepare('SELECT linkedin_job_id, title, company, location, ai_score, ai_verdict, url FROM run_job_logs WHERE run_id = ?')
-    .all(runA.id) as LogEntry[];
-
-  const logsB = db
-    .prepare('SELECT linkedin_job_id, title, company, location, ai_score, ai_verdict, url FROM run_job_logs WHERE run_id = ?')
-    .all(runB.id) as LogEntry[];
-
-  const idsA = new Set(logsA.map((l) => l.linkedin_job_id));
-  const idsB = new Set(logsB.map((l) => l.linkedin_job_id));
-
-  const onlyInA = logsA.filter((l) => !idsB.has(l.linkedin_job_id));
-  const onlyInB = logsB.filter((l) => !idsA.has(l.linkedin_job_id));
-  const inBoth  = logsA.filter((l) =>  idsB.has(l.linkedin_job_id));
-
-  res.json({
-    success: true,
-    run_newer: { id: runA.id, ran_at: runA.ran_at, total: logsA.length },
-    run_older: { id: runB.id, ran_at: runB.ran_at, total: logsB.length },
-    summary: {
-      only_in_newer: onlyInA.length,
-      only_in_older: onlyInB.length,
-      in_both: inBoth.length,
-    },
-    only_in_newer: onlyInA,
-    only_in_older: onlyInB,
-    in_both: inBoth,
-  });
-});
 
 export { router as apiRouter };

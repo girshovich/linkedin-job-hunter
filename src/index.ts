@@ -9,6 +9,7 @@ import { apiRouter } from './routes/api';
 import { reportsRouter } from './routes/reports';
 import { jobsRouter } from './routes/jobs';
 import { analyticsRouter } from './routes/analytics';
+import { rundiffRouter } from './routes/rundiff';
 import { runPipeline } from './pipeline/runner';
 import { startSchedule, stopSchedule, getScheduleStatus } from './pipeline/scheduler';
 
@@ -104,6 +105,7 @@ app.use('/api', apiRouter);
 app.use('/reports', reportsRouter);
 app.use('/jobs', jobsRouter);
 app.use('/analytics', analyticsRouter);
+app.use('/run-diff', rundiffRouter);
 
 // 404 handler
 app.use((_req, res) => {

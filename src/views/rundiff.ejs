@@ -1,0 +1,151 @@
+<%
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(String(iso));
+  if (isNaN(d.getTime())) return String(iso).slice(0, 16);
+  const offset = 4 * 60;
+  const local = new Date(d.getTime() + offset * 60_000);
+  return local.toISOString().slice(0, 16).replace('T', ' ') + ' GMT+4';
+}
+
+function verdictChip(verdict) {
+  if (verdict === 'STRONG_MATCH')
+    return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 whitespace-nowrap">Strong fit</span>';
+  if (verdict === 'WEAK_MATCH')
+    return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 whitespace-nowrap">Weak fit</span>';
+  if (verdict === 'NO_MATCH')
+    return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600 whitespace-nowrap">No fit</span>';
+  if (verdict === 'DUPLICATE')
+    return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-600 whitespace-nowrap">Duplicate</span>';
+  if (verdict === 'BLACKLISTED')
+    return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 whitespace-nowrap">Blacklisted</span>';
+  if (verdict === 'FILTERED')
+    return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500 whitespace-nowrap">Filtered</span>';
+  return '';
+}
+
+function scoreColor(score) {
+  if (score == null) return 'text-gray-300';
+  if (score >= 71) return 'text-emerald-600 font-semibold';
+  if (score >= 51) return 'text-amber-600 font-semibold';
+  return 'text-red-500';
+}
+%>
+
+<div class="mb-6">
+  <h1 class="text-2xl font-bold text-gray-900">Run Diff</h1>
+  <p class="text-sm text-gray-500 mt-1">Comparing the last 2 pipeline runs</p>
+</div>
+
+<% if (error) { %>
+<div class="bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-sm text-red-700"><%= error %></div>
+<% } else { %>
+
+<!-- Run summary -->
+<div class="grid grid-cols-2 gap-3 mb-6">
+  <div class="bg-white border border-gray-200 rounded-xl px-5 py-4">
+    <p class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-1">Newer run #<%= runNewer.id %></p>
+    <p class="text-sm font-semibold text-gray-900"><%= fmtDate(runNewer.ran_at) %></p>
+    <p class="text-xs text-gray-500 mt-1"><%= onlyInNewer.length + inBoth.length %> unique jobs logged</p>
+  </div>
+  <div class="bg-white border border-gray-200 rounded-xl px-5 py-4">
+    <p class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-1">Older run #<%= runOlder.id %></p>
+    <p class="text-sm font-semibold text-gray-900"><%= fmtDate(runOlder.ran_at) %></p>
+    <p class="text-xs text-gray-500 mt-1"><%= onlyInOlder.length + inBoth.length %> unique jobs logged</p>
+  </div>
+</div>
+
+<!-- Summary pills -->
+<div class="flex gap-3 mb-6 flex-wrap">
+  <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 text-sm font-medium">
+    <span class="font-bold"><%= onlyInNewer.length %></span> new this run
+  </span>
+  <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-50 text-orange-700 text-sm font-medium">
+    <span class="font-bold"><%= onlyInOlder.length %></span> dropped since last run
+  </span>
+  <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 text-gray-600 text-sm font-medium">
+    <span class="font-bold"><%= inBoth.length %></span> seen in both
+  </span>
+</div>
+
+<div class="space-y-3">
+
+<!-- New this run -->
+<details open class="group bg-white rounded-xl border border-blue-200 shadow-sm overflow-hidden">
+  <summary class="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none hover:bg-blue-50/50 transition-colors">
+    <div class="flex items-center gap-3">
+      <svg class="w-4 h-4 text-gray-400 flex-shrink-0 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+      </svg>
+      <span class="font-semibold text-gray-900 text-sm">New this run</span>
+      <span class="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-medium"><%= onlyInNewer.length %></span>
+    </div>
+    <span class="text-xs text-gray-400">only in run #<%= runNewer.id %></span>
+  </summary>
+  <div class="border-t border-gray-100">
+    <%- jobTable(onlyInNewer) %>
+  </div>
+</details>
+
+<!-- Dropped since last run -->
+<details class="group bg-white rounded-xl border border-orange-200 shadow-sm overflow-hidden">
+  <summary class="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none hover:bg-orange-50/50 transition-colors">
+    <div class="flex items-center gap-3">
+      <svg class="w-4 h-4 text-gray-400 flex-shrink-0 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+      </svg>
+      <span class="font-semibold text-gray-900 text-sm">Dropped since last run</span>
+      <span class="text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full font-medium"><%= onlyInOlder.length %></span>
+    </div>
+    <span class="text-xs text-gray-400">only in run #<%= runOlder.id %></span>
+  </summary>
+  <div class="border-t border-gray-100">
+    <%- jobTable(onlyInOlder) %>
+  </div>
+</details>
+
+<!-- Seen in both -->
+<details class="group bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+  <summary class="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none hover:bg-gray-50 transition-colors">
+    <div class="flex items-center gap-3">
+      <svg class="w-4 h-4 text-gray-400 flex-shrink-0 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+      </svg>
+      <span class="font-semibold text-gray-900 text-sm">Seen in both runs</span>
+      <span class="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full font-medium"><%= inBoth.length %></span>
+    </div>
+    <span class="text-xs text-gray-400">runs #<%= runOlder.id %> and #<%= runNewer.id %></span>
+  </summary>
+  <div class="border-t border-gray-100">
+    <%- jobTable(inBoth) %>
+  </div>
+</details>
+
+</div>
+<% } %>
+
+<%
+function jobTable(jobs) {
+  if (jobs.length === 0) {
+    return '<p class="px-5 py-6 text-sm text-gray-400 text-center">No jobs.</p>';
+  }
+  let rows = jobs.map(job => {
+    const score = job.ai_score != null ? `<span class="${scoreColor(job.ai_score)}">${job.ai_score}</span>` : '<span class="text-gray-300">—</span>';
+    const link = job.url
+      ? `<a href="${job.url}" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline text-xs">link</a>`
+      : '<span class="text-gray-300 text-xs">—</span>';
+    const loc = job.location ? `<span class="text-xs text-gray-400 truncate max-w-[180px] block">${job.location}</span>` : '';
+    return `<tr class="hover:bg-gray-50 transition-colors">
+      <td class="px-5 py-2.5 text-sm text-gray-700 whitespace-nowrap w-0 max-w-[180px] truncate font-medium">${job.company}</td>
+      <td class="px-3 py-2.5 text-sm text-gray-900">
+        <span class="block">${job.title}</span>
+        ${loc}
+      </td>
+      <td class="px-3 py-2.5 text-xs w-0 whitespace-nowrap text-center score-badge">${score}</td>
+      <td class="px-3 py-2.5 w-0 whitespace-nowrap">${verdictChip(job.ai_verdict)}</td>
+      <td class="pl-3 pr-5 py-2.5 w-0 whitespace-nowrap">${link}</td>
+    </tr>`;
+  }).join('');
+  return `<table class="w-full"><tbody class="divide-y divide-gray-50">${rows}</tbody></table>`;
+}
+%>
