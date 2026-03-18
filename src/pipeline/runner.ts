@@ -184,12 +184,18 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
     // (NO_MATCH jobs are never written to DB, so filterNewJobs alone can't catch within-run dupes)
     const seenInRunJobIds = new Set<string>();
 
-    // Tracks strong matches already claimed this run by company+title (lowercased).
+    // Tracks strong matches already claimed this run by company+title (lowercased+trimmed).
     // Catches jobs that LinkedIn lists under multiple different IDs for the same posting —
     // they bypass linkedin_job_id dedup but would be missed by semantic dedup because
     // the first copy isn't stored yet when the second one's Call 2 query runs.
     // Persists across groups so cross-group same-run duplicates are also caught.
     const seenStrongInRun = new Set<string>();
+
+    // In-run semantic dedup context: maps lowercase+trimmed company name → accepted STRONG_MATCH
+    // jobs from this run (not yet in DB). Prepended to DB results for dedupAndSummarise so the
+    // LLM can compare new jobs against same-company STRONG_MATCHes already accepted this run,
+    // even when they have different titles (not caught by seenStrongInRun).
+    const strongMatchesInRun = new Map<string, ExistingJob[]>();
 
     // --- Per-group loop ---
     for (const group of groups) {
@@ -348,26 +354,29 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
         let summary: string | null = null;
 
         if (scored.verdict === 'STRONG_MATCH') {
-          const runKey = `${scored.job.company.toLowerCase()}|||${scored.job.title.toLowerCase()}`;
+          const runKey = `${scored.job.company.toLowerCase().trim()}|||${scored.job.title.toLowerCase().trim()}`;
+          const companyKey = scored.job.company.toLowerCase().trim();
 
           if (seenStrongInRun.has(runKey)) {
-            // Another copy of this company+title already claimed as canonical this run.
-            // Mark as duplicate without burning an AI call.
+            // Exact company+title match already accepted this run — instant duplicate, no AI call.
             isDuplicate = true;
             console.log(`[runner] In-run duplicate: "${scored.job.title}" at "${scored.job.company}" (different LinkedIn ID, same posting)`);
           } else {
-            const existingJobs = db.prepare(`
+            // Combine in-run accepted STRONG_MATCHes (not yet in DB) with DB entries.
+            const inRunEntries = strongMatchesInRun.get(companyKey) ?? [];
+            const dbEntries = db.prepare(`
               SELECT id, title, description FROM jobs
               WHERE lower(company) = lower(?) AND lower(title) = lower(?)
                 AND is_duplicate = 0 AND ai_verdict = 'STRONG_MATCH'
               ORDER BY fetched_at DESC LIMIT 5
             `).all(scored.job.company, scored.job.title) as ExistingJob[];
+            const existingJobs = [...inRunEntries, ...dbEntries];
 
             if (existingJobs.length > 0) {
               // Call 2: dedup check only — summary was already generated in Call 1
               const dedup = await dedupAndSummarise(scored, existingJobs, settings, openAiKey);
               isDuplicate = dedup.isDuplicate;
-              duplicateOfId = dedup.duplicateOfId;
+              duplicateOfId = dedup.duplicateOfId && dedup.duplicateOfId > 0 ? dedup.duplicateOfId : null;
               totalInputTokens += dedup.tokenUsage.inputTokens;
               totalOutputTokens += dedup.tokenUsage.outputTokens;
               if (isDuplicate) {
@@ -378,6 +387,9 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
 
             if (!isDuplicate) {
               seenStrongInRun.add(runKey);
+              // Register in in-run map so subsequent same-company jobs can be compared against it.
+              const entry: ExistingJob = { id: 0, title: scored.job.title, description: scored.job.description || '' };
+              strongMatchesInRun.set(companyKey, [...(strongMatchesInRun.get(companyKey) ?? []), entry]);
               summary = scored.summary;  // from Call 1
             }
           }
