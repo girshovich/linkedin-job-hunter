@@ -86,10 +86,8 @@ async function runSingleCall(
   for (let attempt = 1; attempt <= FETCH_MAX_ATTEMPTS; attempt++) {
     try {
       const run = await client.actor(ACTOR_ID).call(actorInput, { waitSecs: 900 });
-      const costUsd = typeof (run as unknown as Record<string, unknown>).usageTotalUsd === 'number'
-        ? (run as unknown as Record<string, unknown>).usageTotalUsd as number
-        : null;
       const { items } = await client.dataset(run.defaultDatasetId).listItems();
+      const costUsd = 0.001 + items.length * 0.0004;
       return { items: items as ValigJob[], costUsd };
     } catch (err) {
       lastErr = err;

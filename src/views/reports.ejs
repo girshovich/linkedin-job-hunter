@@ -49,7 +49,7 @@ function verdictChip(verdict, rejectionCategory) {
 <!-- Page header -->
 <div class="mb-8">
   <h1 class="text-2xl font-bold text-gray-900">Run Logs</h1>
-  <p class="text-sm text-gray-500 mt-1">Full audit log of every pipeline run — showing last <%= runs.length %> run<%= runs.length !== 1 ? 's' : '' %></p>
+  <p class="text-sm text-gray-500 mt-1">Full audit log of every pipeline run — showing last <%= runs.length %> run<%= runs.length !== 1 ? 's' : '' %> · <a href="/run-diff" class="text-blue-500 hover:underline">Compare</a> last 2 runs</p>
 </div>
 
 <% if (runs.length === 0) { %>
@@ -171,23 +171,20 @@ function verdictChip(verdict, rejectionCategory) {
         <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide"><%= group.country %></h3>
       </div>
 
-      <!-- Job rows -->
-      <table class="w-full">
+      <!-- Job rows — desktop table -->
+      <table class="hidden md:table w-full">
         <tbody class="divide-y divide-gray-50">
           <% group.jobs.forEach(job => {
             const jdt = fmtDate(job.logged_at);
           %>
           <tr class="hover:bg-gray-50 transition-colors">
-            <!-- Date/time -->
             <td class="px-5 py-2.5 text-xs text-gray-400 whitespace-nowrap w-0">
               <span class="block"><%= jdt.date %></span>
               <span class="block text-gray-300"><%= jdt.time %></span>
             </td>
-            <!-- Company -->
             <td class="px-3 py-2.5 text-sm text-gray-600 whitespace-nowrap w-0 max-w-[160px] truncate">
               <%= job.company %>
             </td>
-            <!-- Job title -->
             <td class="px-3 py-2.5 text-sm text-gray-900">
               <% if (job.internal_job_id) { %>
                 <a href="/job/<%= job.internal_job_id %>" class="hover:text-blue-600 transition-colors"><%= job.title %></a>
@@ -195,7 +192,6 @@ function verdictChip(verdict, rejectionCategory) {
                 <%= job.title %>
               <% } %>
             </td>
-            <!-- External link -->
             <td class="px-3 py-2.5 text-xs w-0 whitespace-nowrap">
               <% if (job.url) { %>
                 <a href="<%= job.url %>" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline">link</a>
@@ -203,14 +199,40 @@ function verdictChip(verdict, rejectionCategory) {
                 <span class="text-gray-300">—</span>
               <% } %>
             </td>
-            <!-- Resolution chip -->
             <td class="pl-3 pr-5 py-2.5 text-right w-0 whitespace-nowrap">
+              <% if (job.internal_job_id || job.url) { %>
+              <span onclick="showJobMenu(event,this)" data-internal-id="<%= job.internal_job_id || '' %>" data-url="<%= job.url || '' %>" class="cursor-pointer">
+                <%- verdictChip(job.ai_verdict, job.rejection_category) %>
+              </span>
+              <% } else { %>
               <%- verdictChip(job.ai_verdict, job.rejection_category) %>
+              <% } %>
             </td>
           </tr>
           <% }); %>
         </tbody>
       </table>
+
+      <!-- Job rows — mobile list -->
+      <div class="md:hidden divide-y divide-gray-50">
+        <% group.jobs.forEach(job => { %>
+        <% const target = job.internal_job_id ? '/job/' + job.internal_job_id : (job.url || null); %>
+        <div class="px-4 py-3 hover:bg-gray-50 transition-colors<%= target ? ' cursor-pointer' : '' %>"
+             <% if (target) { %>onclick="location.href='<%= target %>'"<% } %>>
+          <div class="flex items-center justify-between gap-2 mb-0.5">
+            <span class="text-sm font-medium text-gray-700 truncate"><%= job.company %></span>
+            <% if (job.internal_job_id || job.url) { %>
+            <span onclick="showJobMenu(event,this)" data-internal-id="<%= job.internal_job_id || '' %>" data-url="<%= job.url || '' %>" class="cursor-pointer flex-shrink-0">
+              <%- verdictChip(job.ai_verdict, job.rejection_category) %>
+            </span>
+            <% } else { %>
+            <span class="flex-shrink-0"><%- verdictChip(job.ai_verdict, job.rejection_category) %></span>
+            <% } %>
+          </div>
+          <p class="text-xs text-gray-500 truncate"><%= job.title %></p>
+        </div>
+        <% }); %>
+      </div>
     </div>
     <% }); %>
 
@@ -231,7 +253,41 @@ function verdictChip(verdict, rejectionCategory) {
 </div>
 <% } %>
 
+<!-- Job context menu (shared) -->
+<div id="job-menu" class="hidden fixed z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 text-xs min-w-[140px]">
+  <a id="job-menu-view" href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 text-gray-700 transition-colors">View details</a>
+  <a id="job-menu-link" href="#" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 text-gray-700 transition-colors">Open on LinkedIn</a>
+</div>
+
 <script>
+function showJobMenu(event, el) {
+  event.stopPropagation();
+  const internalId = el.dataset.internalId;
+  const url = el.dataset.url;
+  const menu = document.getElementById('job-menu');
+  const viewLink = document.getElementById('job-menu-view');
+  const extLink = document.getElementById('job-menu-link');
+
+  if (internalId) {
+    viewLink.href = '/job/' + internalId;
+    viewLink.classList.remove('hidden');
+  } else {
+    viewLink.classList.add('hidden');
+  }
+  if (url) {
+    extLink.href = url;
+    extLink.classList.remove('hidden');
+  } else {
+    extLink.classList.add('hidden');
+  }
+
+  document.querySelectorAll('[id^="cost-popup-"]').forEach(el => el.classList.add('hidden'));
+  const rect = el.getBoundingClientRect();
+  menu.style.top = (rect.bottom + 4) + 'px';
+  menu.style.left = Math.min(rect.left, window.innerWidth - 160) + 'px';
+  menu.classList.remove('hidden');
+}
+
 function toggleCostPopup(runId) {
   const popup = document.getElementById('cost-popup-' + runId);
   const btn = popup.previousElementSibling;
@@ -246,5 +302,6 @@ function toggleCostPopup(runId) {
 }
 document.addEventListener('click', () => {
   document.querySelectorAll('[id^="cost-popup-"]').forEach(el => el.classList.add('hidden'));
+  document.getElementById('job-menu').classList.add('hidden');
 });
 </script>
