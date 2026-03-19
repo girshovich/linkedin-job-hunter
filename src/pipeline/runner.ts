@@ -173,6 +173,11 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
+    const updateApplyUrl = db.prepare(`
+      UPDATE jobs SET apply_url = ?
+      WHERE linkedin_job_id = ? AND profile_id = ? AND apply_url IS NULL
+    `);
+
     const insertJobLog = db.prepare(`
       INSERT INTO run_job_logs (
         run_id, group_id, linkedin_job_id, title, company, location, url,
@@ -442,6 +447,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
               group.id, null,
               job.applyUrl || null, job.provider || 'harvestapi',
             );
+            if (job.applyUrl) updateApplyUrl.run(job.applyUrl, job.jobId, profileId);
           }
         });
         console.log(`[runner] Group ${group.id}: stored ${blacklistedJobs.length} blacklisted job(s).`);
@@ -465,6 +471,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
               group.id, scored.rejectionCategory || null,
               job.applyUrl || null, job.provider || 'harvestapi',
             );
+            if (job.applyUrl) updateApplyUrl.run(job.applyUrl, job.jobId, profileId);
           }
         });
         console.log(`[runner] Group ${group.id}: stored ${jobResults.length} jobs.`);

@@ -25,6 +25,7 @@ interface HarvestJob {
   descriptionHtml?: string;
   linkedinUrl?: string;
   applyUrl?: string;
+  applyMethod?: { companyApplyUrl?: string; easyApplyUrl?: string };
   url?: string;
   postedDate?: string;
   listedAt?: string | number;
@@ -57,7 +58,8 @@ function mapToJobPosting(item: HarvestJob): JobPosting {
   const description = item.descriptionHtml || item.descriptionText || item.description || '';
   const url = item.linkedinUrl || item.url
     || (jobId ? `https://www.linkedin.com/jobs/view/${jobId}/` : '');
-  const applyUrl = (item.applyUrl && item.applyUrl !== url) ? item.applyUrl : null;
+  const rawApplyUrl = item.applyMethod?.companyApplyUrl || item.applyUrl || null;
+  const applyUrl = (rawApplyUrl && rawApplyUrl !== url) ? rawApplyUrl : null;
 
   return {
     jobId,
