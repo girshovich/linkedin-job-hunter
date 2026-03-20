@@ -166,28 +166,10 @@
 
 </div>
 
-<!-- ── Daily Saved Jobs — last 14 days ── -->
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
-  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-    <h2 class="font-semibold text-gray-900 text-sm">Daily Strong Matches — last 14 days</h2>
-    <select id="daily-role-filter" onchange="renderDaily(this.value)"
-            class="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none">
-      <option value="all">All roles</option>
-      <% groups.forEach(g => { %>
-      <option value="<%= g.id %>"><%= g.group_name || ('Role ' + g.id) %></option>
-      <% }); %>
-    </select>
-  </div>
-  <div id="daily-legend" class="flex flex-wrap gap-x-4 gap-y-1 mb-4"></div>
-  <div style="overflow-x:auto;">
-    <div id="daily-chart" style="display:flex;align-items:flex-end;gap:6px;"></div>
-  </div>
-</div>
-
-<!-- ── Strong Match Quality — last 14 days ── -->
+<!-- ── Daily Strong Matches — last 14 days ── -->
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
   <div class="mb-4">
-    <h2 class="font-semibold text-gray-900 text-sm">Strong Match Quality — last 14 days</h2>
+    <h2 class="font-semibold text-gray-900 text-sm">Daily Strong Matches — last 14 days</h2>
     <p class="text-xs text-gray-400 mt-0.5">AI strong matches kept vs. promoted/demoted by you</p>
   </div>
   <div id="quality-legend" class="flex flex-wrap gap-x-4 gap-y-1 mb-4"></div>
@@ -196,112 +178,23 @@
   </div>
 </div>
 
-<!-- ── Monthly Saved Jobs — last 12 months ── -->
+<!-- ── Monthly Strong Matches — last 12 months ── -->
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+  <div class="mb-4">
     <h2 class="font-semibold text-gray-900 text-sm">Monthly Strong Matches — last 12 months</h2>
-    <select id="monthly-role-filter" onchange="renderMonthly(this.value)"
-            class="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none">
-      <option value="all">All roles</option>
-      <% groups.forEach(g => { %>
-      <option value="<%= g.id %>"><%= g.group_name || ('Role ' + g.id) %></option>
-      <% }); %>
-    </select>
+    <p class="text-xs text-gray-400 mt-0.5">AI strong matches kept vs. promoted/demoted by you</p>
   </div>
-  <div id="monthly-legend" class="flex flex-wrap gap-x-4 gap-y-1 mb-4"></div>
+  <div id="quality-monthly-legend" class="flex flex-wrap gap-x-4 gap-y-1 mb-4"></div>
   <div style="overflow-x:auto;">
-    <div id="monthly-chart" style="display:flex;align-items:flex-end;gap:6px;"></div>
+    <div id="quality-monthly-chart" style="display:flex;align-items:flex-end;gap:6px;"></div>
   </div>
 </div>
 
 <script>
-const DAILY_RAW   = <%- JSON.stringify(dailyGroupRaw) %>;
-const MONTHLY_RAW = <%- JSON.stringify(monthlyRaw) %>;
-const QUALITY_RAW = <%- JSON.stringify(strongQualityRaw) %>;
+const QUALITY_RAW         = <%- JSON.stringify(strongQualityRaw) %>;
+const QUALITY_MONTHLY_RAW = <%- JSON.stringify(strongQualityMonthlyRaw) %>;
 
-// ── Verdict config ──────────────────────────────────────────────────────────
-const V_ORDER  = ['STRONG_MATCH'];
-const V_CONFIG = {
-  STRONG_MATCH: { label:'Strong', color:'#10b981' },
-};
-
-// ── Tooltip ─────────────────────────────────────────────────────────────────
-let _tip = null;
-function _ensureTip() {
-  if (_tip) return;
-  _tip = document.createElement('div');
-  _tip.style.cssText = 'position:fixed;z-index:9999;background:#111827;color:#f9fafb;padding:8px 12px;border-radius:8px;font-size:12px;pointer-events:none;line-height:1.7;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.35);display:none;';
-  document.body.appendChild(_tip);
-}
-function showBarTip(e, el) {
-  _ensureTip();
-  const d = JSON.parse(el.dataset.tip);
-  const total = V_ORDER.reduce((s,v) => s + (d.verdicts[v] || 0), 0);
-  const lines = V_ORDER.filter(v => d.verdicts[v] > 0).map(v =>
-    `<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${V_CONFIG[v].color};margin-right:5px;vertical-align:middle;flex-shrink:0;"></span>${V_CONFIG[v].label}: <b>${d.verdicts[v]}</b>`
-  ).join('<br>');
-  _tip.innerHTML = `<div style="font-weight:700;margin-bottom:5px;border-bottom:1px solid rgba(255,255,255,.15);padding-bottom:4px;">${d.label} &mdash; ${total} saved</div>${lines}`;
-  _tip.style.display = 'block';
-  _moveTip(e);
-}
-function _moveTip(e) {
-  if (!_tip || _tip.style.display === 'none') return;
-  const w = _tip.offsetWidth, h = _tip.offsetHeight;
-  let x = e.clientX + 14, y = e.clientY - h - 10;
-  if (x + w > window.innerWidth - 8) x = e.clientX - w - 14;
-  if (y < 8) y = e.clientY + 14;
-  _tip.style.left = x + 'px';
-  _tip.style.top  = y + 'px';
-}
-function hideTip() { if (_tip) _tip.style.display = 'none'; }
-document.addEventListener('mousemove', _moveTip);
-
-// ── Shared bar builder ───────────────────────────────────────────────────────
-function buildBar(periodLabel, verdicts, maxTotal, BAR_H) {
-  const total = V_ORDER.reduce((s,v) => s + (verdicts[v] || 0), 0);
-  const totalH = total > 0 ? Math.max(Math.round(total / maxTotal * BAR_H), 4) : 0;
-
-  // Stacked segments top-to-bottom: STRONG (top) → WEAK → NO_MATCH → DUPLICATE → BLACKLISTED (bottom)
-  let segs = '', remaining = totalH;
-  const presentOrder = V_ORDER.filter(v => (verdicts[v] || 0) > 0);
-  for (let i = 0; i < presentOrder.length; i++) {
-    const v = presentOrder[i];
-    const cnt = verdicts[v];
-    const segH = i === presentOrder.length - 1
-      ? remaining   // last segment absorbs rounding remainder
-      : Math.round(cnt / total * totalH);
-    remaining -= segH;
-    segs += `<div style="width:100%;height:${segH}px;background:${V_CONFIG[v].color};flex-shrink:0;"></div>`;
-  }
-
-  const tipData = JSON.stringify({ label: periodLabel, verdicts });
-  const safeData = tipData.replace(/"/g,'&quot;');
-
-  return `
-    <div style="flex:1;display:flex;flex-direction:column;align-items:center;cursor:default;position:relative;">
-      <div style="position:relative;width:100%;height:${BAR_H}px;display:flex;align-items:flex-end;"
-           data-tip="${safeData}"
-           onmouseenter="showBarTip(event,this)" onmouseleave="hideTip()">
-        <div style="width:100%;height:${totalH}px;display:flex;flex-direction:column;border-radius:2px 2px 0 0;overflow:hidden;">
-          ${segs}
-        </div>
-        ${total > 0 ? `<span style="position:absolute;bottom:${totalH + 4}px;left:0;right:0;text-align:center;font-size:11px;font-weight:700;color:#374151;">${total}</span>` : ''}
-      </div>
-    </div>`;
-}
-
-// ── Legend builder ───────────────────────────────────────────────────────────
-function renderLegend(containerId, presentVerdicts) {
-  const el = document.getElementById(containerId);
-  el.innerHTML = V_ORDER.filter(v => presentVerdicts.has(v)).map(v =>
-    `<div style="display:flex;align-items:center;gap:4px;">
-       <div style="width:10px;height:10px;border-radius:2px;background:${V_CONFIG[v].color};flex-shrink:0;"></div>
-       <span style="font-size:11px;color:#6b7280;">${V_CONFIG[v].label}</span>
-     </div>`
-  ).join('');
-}
-
-// ── Date helpers ─────────────────────────────────────────────────────────────
+// ── Shared helpers ────────────────────────────────────────────────────────────
 const MN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function getLastNDays(n) {
   const out = [];
@@ -322,68 +215,26 @@ function getLastNMonths(n) {
   return out;
 }
 
-// ── Daily chart ──────────────────────────────────────────────────────────────
-function renderDaily(groupId) {
-  const days = getLastNDays(14);
-  const verdictMap = {};
-  const presentVerdicts = new Set();
-  for (const d of days) { verdictMap[d] = {}; for (const v of V_ORDER) verdictMap[d][v] = 0; }
-
-  for (const row of DAILY_RAW) {
-    if (groupId !== 'all' && String(row.group_id) !== String(groupId)) continue;
-    if (verdictMap[row.day] !== undefined && V_CONFIG[row.verdict]) {
-      verdictMap[row.day][row.verdict] += row.count;
-      presentVerdicts.add(row.verdict);
-    }
-  }
-
-  const BAR_H = 96;
-  const maxTotal = Math.max(...days.map(d => V_ORDER.reduce((s,v) => s + verdictMap[d][v], 0)), 1);
-
-  const container = document.getElementById('daily-chart');
-  container.style.height = (BAR_H + 36) + 'px';
-  container.style.minWidth = (days.length * 36 + (days.length - 1) * 6) + 'px';
-  container.innerHTML = days.map(d => {
-    const parts = d.split('-');
-    const label = MN[parseInt(parts[1])-1] + ' ' + parseInt(parts[2]);
-    return buildBar(label, verdictMap[d], maxTotal, BAR_H)
-      + `<span style="font-size:10px;color:#6b7280;text-align:center;display:block;margin-top:4px;width:100%;position:absolute;bottom:0;left:0;">${label}</span>`;
-  }).map((html, i) => `<div style="flex:1;position:relative;padding-top:16px;padding-bottom:20px;">${html}</div>`).join('');
-
-  renderLegend('daily-legend', presentVerdicts);
+// ── Tooltip ───────────────────────────────────────────────────────────────────
+let _tip = null;
+function _ensureTip() {
+  if (_tip) return;
+  _tip = document.createElement('div');
+  _tip.style.cssText = 'position:fixed;z-index:9999;background:#111827;color:#f9fafb;padding:8px 12px;border-radius:8px;font-size:12px;pointer-events:none;line-height:1.7;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.35);display:none;';
+  document.body.appendChild(_tip);
 }
-
-// ── Monthly chart ────────────────────────────────────────────────────────────
-function renderMonthly(groupId) {
-  const months = getLastNMonths(12);
-  const verdictMap = {};
-  const presentVerdicts = new Set();
-  for (const m of months) { verdictMap[m] = {}; for (const v of V_ORDER) verdictMap[m][v] = 0; }
-
-  for (const row of MONTHLY_RAW) {
-    if (groupId !== 'all' && String(row.group_id) !== String(groupId)) continue;
-    if (verdictMap[row.month] !== undefined && V_CONFIG[row.verdict]) {
-      verdictMap[row.month][row.verdict] += row.count;
-      presentVerdicts.add(row.verdict);
-    }
-  }
-
-  const BAR_H = 110;
-  const maxTotal = Math.max(...months.map(m => V_ORDER.reduce((s,v) => s + verdictMap[m][v], 0)), 1);
-
-  const container = document.getElementById('monthly-chart');
-  container.style.height = (BAR_H + 36) + 'px';
-  container.style.minWidth = (months.length * 36 + (months.length - 1) * 6) + 'px';
-  container.innerHTML = months.map(m => {
-    const label = MN[parseInt(m.slice(5))-1];
-    return buildBar(label, verdictMap[m], maxTotal, BAR_H)
-      + `<span style="font-size:10px;color:#6b7280;text-align:center;display:block;margin-top:4px;width:100%;position:absolute;bottom:0;left:0;">${label}</span>`;
-  }).map(html => `<div style="flex:1;position:relative;padding-top:16px;padding-bottom:20px;">${html}</div>`).join('');
-
-  renderLegend('monthly-legend', presentVerdicts);
+function _moveTip(e) {
+  if (!_tip || _tip.style.display === 'none') return;
+  const w = _tip.offsetWidth, h = _tip.offsetHeight;
+  let x = e.clientX + 14, y = e.clientY - h - 10;
+  if (x + w > window.innerWidth - 8) x = e.clientX - w - 14;
+  if (y < 8) y = e.clientY + 14;
+  _tip.style.left = x + 'px'; _tip.style.top = y + 'px';
 }
+function hideTip() { if (_tip) _tip.style.display = 'none'; }
+document.addEventListener('mousemove', _moveTip);
 
-// ── Strong Match Quality chart ────────────────────────────────────────────────
+// ── Quality chart shared renderer (used for both daily and monthly) ────────────
 const Q_ORDER  = ['kept', 'promoted', 'demoted'];
 const Q_CONFIG = {
   kept:     { label: 'AI strong — kept',    color: '#10b981' },
@@ -391,29 +242,29 @@ const Q_CONFIG = {
   demoted:  { label: 'Demoted from strong', color: '#f87171' },
 };
 
-function renderQuality() {
-  const days = getLastNDays(14);
+function renderQualityChart(containerId, legendId, rawData, periods, getLabel, getKey) {
   const dataMap = {};
-  for (const d of days) { dataMap[d] = { kept: 0, promoted: 0, demoted: 0 }; }
-  for (const row of QUALITY_RAW) {
-    if (dataMap[row.day] !== undefined && Q_CONFIG[row.category]) {
-      dataMap[row.day][row.category] += row.count;
+  for (const p of periods) { dataMap[p] = { kept: 0, promoted: 0, demoted: 0 }; }
+  for (const row of rawData) {
+    const key = getKey(row);
+    if (dataMap[key] !== undefined && Q_CONFIG[row.category]) {
+      dataMap[key][row.category] += row.count;
     }
   }
 
   const BAR_H = 96;
   const presentCats = new Set();
-  const maxTotal = Math.max(...days.map(d => {
-    const total = Q_ORDER.reduce((s,c) => s + dataMap[d][c], 0);
-    Q_ORDER.forEach(c => { if (dataMap[d][c] > 0) presentCats.add(c); });
+  const maxTotal = Math.max(...periods.map(p => {
+    const total = Q_ORDER.reduce((s,c) => s + dataMap[p][c], 0);
+    Q_ORDER.forEach(c => { if (dataMap[p][c] > 0) presentCats.add(c); });
     return total;
   }), 1);
 
-  const container = document.getElementById('quality-chart');
+  const container = document.getElementById(containerId);
   container.style.height = (BAR_H + 36) + 'px';
-  container.style.minWidth = (days.length * 36 + (days.length - 1) * 6) + 'px';
-  container.innerHTML = days.map(d => {
-    const cats = dataMap[d];
+  container.style.minWidth = (periods.length * 36 + (periods.length - 1) * 6) + 'px';
+  container.innerHTML = periods.map(p => {
+    const cats = dataMap[p];
     const total = Q_ORDER.reduce((s,c) => s + cats[c], 0);
     const totalH = total > 0 ? Math.max(Math.round(total / maxTotal * BAR_H), 4) : 0;
     let segs = '', remaining = totalH;
@@ -427,24 +278,20 @@ function renderQuality() {
     const tipLines = Q_ORDER.filter(c => cats[c] > 0).map(c =>
       `<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${Q_CONFIG[c].color};margin-right:5px;vertical-align:middle;"></span>${Q_CONFIG[c].label}: <b>${cats[c]}</b>`
     ).join('<br>');
-    const parts = d.split('-');
-    const label = MN[parseInt(parts[1])-1] + ' ' + parseInt(parts[2]);
+    const label = getLabel(p);
     const tipData = JSON.stringify({ label, total, lines: tipLines });
     const safeData = tipData.replace(/"/g,'&quot;');
     return `<div style="flex:1;position:relative;padding-top:16px;padding-bottom:20px;">
       <div style="position:relative;width:100%;height:${BAR_H}px;display:flex;align-items:flex-end;cursor:default;"
-           data-qtip="${safeData}"
-           onmouseenter="showQTip(event,this)" onmouseleave="hideTip()">
+           data-qtip="${safeData}" onmouseenter="showQTip(event,this)" onmouseleave="hideTip()">
         <div style="width:100%;height:${totalH}px;display:flex;flex-direction:column;border-radius:2px 2px 0 0;overflow:hidden;">${segs}</div>
         ${total > 0 ? `<span style="position:absolute;bottom:${totalH + 4}px;left:0;right:0;text-align:center;font-size:11px;font-weight:700;color:#374151;">${total}</span>` : ''}
       </div>
-      <span style="font-size:10px;color:#6b7280;text-align:center;display:block;margin-top:4px;width:100%;position:absolute;bottom:0;left:0;">${label}</span>
+      <span style="font-size:10px;color:#6b7280;text-align:center;display:block;position:absolute;bottom:0;left:0;right:0;">${label}</span>
     </div>`;
   }).join('');
 
-  // Legend — always show all 3 categories so user knows what to expect
-  const legendEl = document.getElementById('quality-legend');
-  legendEl.innerHTML = Q_ORDER.map(c =>
+  document.getElementById(legendId).innerHTML = Q_ORDER.map(c =>
     `<div style="display:flex;align-items:center;gap:4px;">
        <div style="width:10px;height:10px;border-radius:2px;background:${Q_CONFIG[c].color};flex-shrink:0;"></div>
        <span style="font-size:11px;color:#6b7280;">${Q_CONFIG[c].label}</span>
@@ -461,7 +308,16 @@ function showQTip(e, el) {
 }
 
 
-renderDaily('all');
-renderMonthly('all');
-renderQuality();
+renderQualityChart(
+  'quality-chart', 'quality-legend', QUALITY_RAW,
+  getLastNDays(14),
+  d => { const p = d.split('-'); return MN[parseInt(p[1])-1] + ' ' + parseInt(p[2]); },
+  row => row.day
+);
+renderQualityChart(
+  'quality-monthly-chart', 'quality-monthly-legend', QUALITY_MONTHLY_RAW,
+  getLastNMonths(12),
+  m => MN[parseInt(m.slice(5))-1] + ' \'' + m.slice(2,4),
+  row => row.month
+);
 </script>

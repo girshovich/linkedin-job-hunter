@@ -148,7 +148,7 @@ router.get('/', (req: Request, res: Response) => {
     ORDER BY month
   `).all(profileId) as MonthVerdictRow[];
 
-  // Strong match quality — last 14 days
+  // Strong match quality — last 14 days (daily)
   interface StrongQualityRow { day: string; category: string; count: number }
   const strongQualityRaw = db.prepare<StrongQualityRow>(`
     SELECT
@@ -170,14 +170,35 @@ router.get('/', (req: Request, res: Response) => {
     ORDER BY day
   `).all(profileId) as StrongQualityRow[];
 
+  // Strong match quality — last 12 months (monthly)
+  interface StrongQualityMonthRow { month: string; category: string; count: number }
+  const strongQualityMonthlyRaw = db.prepare<StrongQualityMonthRow>(`
+    SELECT
+      strftime('%Y-%m', fetched_at) as month,
+      CASE
+        WHEN ai_verdict = 'STRONG_MATCH' AND (original_ai_verdict = 'STRONG_MATCH' OR original_ai_verdict IS NULL) THEN 'kept'
+        WHEN ai_verdict = 'STRONG_MATCH' AND original_ai_verdict != 'STRONG_MATCH' THEN 'promoted'
+        WHEN ai_verdict != 'STRONG_MATCH' AND original_ai_verdict = 'STRONG_MATCH' THEN 'demoted'
+        ELSE NULL
+      END as category,
+      COUNT(*) as count
+    FROM jobs
+    WHERE profile_id = ?
+      AND is_duplicate = 0
+      AND (ai_verdict = 'STRONG_MATCH' OR original_ai_verdict = 'STRONG_MATCH')
+      AND strftime('%Y-%m', fetched_at) >= strftime('%Y-%m', 'now', '-11 months')
+    GROUP BY month, category
+    HAVING category IS NOT NULL
+    ORDER BY month
+  `).all(profileId) as StrongQualityMonthRow[];
+
   res.render('analytics', {
     totals,
     statusBreakdown,
     groupStats,
     countryStats,
-    dailyGroupRaw,
-    monthlyRaw,
     strongQualityRaw,
+    strongQualityMonthlyRaw,
     groups,
     title: 'Stats',
   });

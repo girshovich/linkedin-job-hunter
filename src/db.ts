@@ -590,6 +590,29 @@ function runMigrations(db: Database): void {
     console.warn('[db] Migration v23 (original_ai_verdict) failed (non-fatal):', (err as Error).message);
   }
 
+  // v23b: re-backfill original_ai_verdict from run_job_logs (the simple backfill above used
+  // the current ai_verdict, which loses history for jobs the user had already promoted/demoted.
+  // The earliest run_job_logs entry has the AI's true original verdict.)
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)`);
+    const done = db.prepare(`SELECT 1 FROM _migrations WHERE name = 'v23b'`).get();
+    if (!done) {
+      db.exec(`
+        UPDATE jobs SET original_ai_verdict = (
+          SELECT rjl.ai_verdict FROM run_job_logs rjl
+          WHERE rjl.linkedin_job_id = jobs.linkedin_job_id
+          ORDER BY rjl.logged_at ASC LIMIT 1
+        )
+        WHERE original_ai_verdict = ai_verdict
+          AND EXISTS (SELECT 1 FROM run_job_logs rjl2 WHERE rjl2.linkedin_job_id = jobs.linkedin_job_id)
+      `);
+      db.exec(`INSERT INTO _migrations VALUES ('v23b')`);
+      console.log('[db] Migration v23b: original_ai_verdict re-backfilled from run_job_logs');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v23b (original_ai_verdict re-backfill) failed (non-fatal):', (err as Error).message);
+  }
+
   // v8: seed default search group from settings row if groups table is empty
   try {
     const groupCount = (
