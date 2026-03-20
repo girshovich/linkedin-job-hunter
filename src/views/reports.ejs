@@ -49,7 +49,14 @@ function verdictChip(verdict, rejectionCategory) {
 <!-- Page header -->
 <div class="mb-8">
   <h1 class="text-2xl font-bold text-gray-900">Run Logs</h1>
-  <p class="text-sm text-gray-500 mt-1">Full audit log of every pipeline run — showing last <%= runs.length %> run<%= runs.length !== 1 ? 's' : '' %> · <a href="/run-diff" class="text-blue-500 hover:underline">Compare</a> last 2 runs</p>
+  <div class="flex items-center justify-between gap-4 mt-1">
+    <p class="text-sm text-gray-500">Full audit log of every pipeline run — showing last <%= runs.length %> run<%= runs.length !== 1 ? 's' : '' %> · <a href="/run-diff" class="text-blue-500 hover:underline">Compare</a> last 2 runs</p>
+    <label class="flex items-center gap-2 cursor-pointer flex-shrink-0">
+      <span class="text-xs text-gray-500">Split by location</span>
+      <input type="checkbox" id="location-split-checkbox" onchange="toggleLocationSplit(this.checked)" class="sr-only peer" />
+      <div class="relative w-9 h-5 bg-gray-300 peer-checked:bg-blue-500 rounded-full transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4"></div>
+    </label>
+  </div>
 </div>
 
 <% if (runs.length === 0) { %>
@@ -164,25 +171,26 @@ function verdictChip(verdict, rejectionCategory) {
     </div>
     <% } else { %>
 
-    <% run.countryGroups.forEach(group => { %>
-    <div>
-      <!-- Country header -->
-      <div class="px-5 py-2.5 bg-gray-50 border-b border-gray-100 sticky top-0">
-        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide"><%= group.country %></h3>
-      </div>
+    <%
+    const flatJobs = [];
+    run.countryGroups.forEach(function(g) { flatJobs.push.apply(flatJobs, g.jobs); });
+    flatJobs.sort(function(a, b) {
+      const sa = a.ai_score, sb = b.ai_score;
+      if (sa != null && sb != null) return sb - sa;
+      if (sa != null) return -1;
+      if (sb != null) return 1;
+      const vp = { DUPLICATE: 0, BLACKLISTED: 1, FILTERED: 2 };
+      return (vp[a.ai_verdict] || 99) - (vp[b.ai_verdict] || 99);
+    });
+    %>
 
-      <!-- Job rows — desktop table -->
+    <!-- Flat view: sorted by score (default) -->
+    <div class="run-flat-view">
       <table class="hidden md:table w-full">
         <tbody class="divide-y divide-gray-50">
-          <% group.jobs.forEach(job => {
-            const jdt = fmtDate(job.logged_at);
-          %>
+          <% flatJobs.forEach(function(job) { %>
           <tr class="hover:bg-gray-50 transition-colors">
-            <td class="px-5 py-2.5 text-xs text-gray-400 whitespace-nowrap w-0">
-              <span class="block"><%= jdt.date %></span>
-              <span class="block text-gray-300"><%= jdt.time %></span>
-            </td>
-            <td class="px-3 py-2.5 text-sm text-gray-600 whitespace-nowrap w-0 max-w-[160px] truncate">
+            <td class="px-5 py-2.5 text-sm text-gray-600 whitespace-nowrap w-0 max-w-[160px] truncate">
               <%= job.company %>
             </td>
             <td class="px-3 py-2.5 text-sm text-gray-900">
@@ -190,6 +198,14 @@ function verdictChip(verdict, rejectionCategory) {
                 <a href="/job/<%= job.internal_job_id %>" class="hover:text-blue-600 transition-colors"><%= job.title %></a>
               <% } else { %>
                 <%= job.title %>
+              <% } %>
+              <% if (job.location) { %><span class="block text-xs text-gray-400 truncate"><%= job.location %></span><% } %>
+            </td>
+            <td class="px-3 py-2.5 text-xs w-0 text-center whitespace-nowrap">
+              <% if (job.ai_score != null) { %>
+                <span class="<%= job.ai_score >= 71 ? 'text-emerald-600 font-semibold' : job.ai_score >= 51 ? 'text-amber-600 font-semibold' : 'text-red-500' %>"><%= job.ai_score %></span>
+              <% } else { %>
+                <span class="text-gray-300">—</span>
               <% } %>
             </td>
             <td class="px-3 py-2.5 text-xs w-0 whitespace-nowrap">
@@ -200,41 +216,100 @@ function verdictChip(verdict, rejectionCategory) {
               <% } %>
             </td>
             <td class="pl-3 pr-5 py-2.5 text-right w-0 whitespace-nowrap">
-              <% if (job.internal_job_id || job.url) { %>
-              <span onclick="showJobMenu(event,this)" data-internal-id="<%= job.internal_job_id || '' %>" data-url="<%= job.url || '' %>" class="cursor-pointer">
+              <span onclick="showJobMenu(event,this)" data-internal-id="<%= job.internal_job_id || '' %>" data-url="<%= job.url || '' %>" data-log-id="<%= job.id %>" data-verdict="<%= job.ai_verdict %>" class="cursor-pointer">
                 <%- verdictChip(job.ai_verdict, job.rejection_category) %>
               </span>
-              <% } else { %>
-              <%- verdictChip(job.ai_verdict, job.rejection_category) %>
-              <% } %>
             </td>
           </tr>
           <% }); %>
         </tbody>
       </table>
-
-      <!-- Job rows — mobile list -->
       <div class="md:hidden divide-y divide-gray-50">
-        <% group.jobs.forEach(job => { %>
+        <% flatJobs.forEach(function(job) { %>
         <% const target = job.internal_job_id ? '/job/' + job.internal_job_id : (job.url || null); %>
         <div class="px-4 py-3 hover:bg-gray-50 transition-colors<%= target ? ' cursor-pointer' : '' %>"
              <% if (target) { %>onclick="location.href='<%= target %>'"<% } %>>
           <div class="flex items-center justify-between gap-2 mb-0.5">
             <span class="text-sm font-medium text-gray-700 truncate"><%= job.company %></span>
-            <% if (job.internal_job_id || job.url) { %>
-            <span onclick="showJobMenu(event,this)" data-internal-id="<%= job.internal_job_id || '' %>" data-url="<%= job.url || '' %>" class="cursor-pointer flex-shrink-0">
+            <span onclick="showJobMenu(event,this)" data-internal-id="<%= job.internal_job_id || '' %>" data-url="<%= job.url || '' %>" data-log-id="<%= job.id %>" data-verdict="<%= job.ai_verdict %>" class="cursor-pointer flex-shrink-0">
               <%- verdictChip(job.ai_verdict, job.rejection_category) %>
             </span>
-            <% } else { %>
-            <span class="flex-shrink-0"><%- verdictChip(job.ai_verdict, job.rejection_category) %></span>
-            <% } %>
           </div>
           <p class="text-xs text-gray-500 truncate"><%= job.title %></p>
+          <% if (job.location) { %><p class="text-xs text-gray-400 truncate mt-0.5"><%= job.location %></p><% } %>
         </div>
         <% }); %>
       </div>
     </div>
-    <% }); %>
+
+    <!-- Location view: split by country (hidden by default) -->
+    <div class="run-location-view hidden">
+      <% run.countryGroups.forEach(function(group) { %>
+      <div>
+        <div class="px-5 py-2.5 bg-gray-50 border-b border-gray-100 sticky top-0">
+          <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide"><%= group.country %></h3>
+        </div>
+        <table class="hidden md:table w-full">
+          <tbody class="divide-y divide-gray-50">
+            <% group.jobs.forEach(function(job) {
+              const jdt = fmtDate(job.logged_at);
+            %>
+            <tr class="hover:bg-gray-50 transition-colors">
+              <td class="px-5 py-2.5 text-xs text-gray-400 whitespace-nowrap w-0">
+                <span class="block"><%= jdt.date %></span>
+                <span class="block text-gray-300"><%= jdt.time %></span>
+              </td>
+              <td class="px-3 py-2.5 text-sm text-gray-600 whitespace-nowrap w-0 max-w-[160px] truncate">
+                <%= job.company %>
+              </td>
+              <td class="px-3 py-2.5 text-sm text-gray-900">
+                <% if (job.internal_job_id) { %>
+                  <a href="/job/<%= job.internal_job_id %>" class="hover:text-blue-600 transition-colors"><%= job.title %></a>
+                <% } else { %>
+                  <%= job.title %>
+                <% } %>
+              </td>
+              <td class="px-3 py-2.5 text-xs w-0 text-center whitespace-nowrap">
+                <% if (job.ai_score != null) { %>
+                  <span class="<%= job.ai_score >= 71 ? 'text-emerald-600 font-semibold' : job.ai_score >= 51 ? 'text-amber-600 font-semibold' : 'text-red-500' %>"><%= job.ai_score %></span>
+                <% } else { %>
+                  <span class="text-gray-300">—</span>
+                <% } %>
+              </td>
+              <td class="px-3 py-2.5 text-xs w-0 whitespace-nowrap">
+                <% if (job.url) { %>
+                  <a href="<%= job.url %>" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline">link</a>
+                <% } else { %>
+                  <span class="text-gray-300">—</span>
+                <% } %>
+              </td>
+              <td class="pl-3 pr-5 py-2.5 text-right w-0 whitespace-nowrap">
+                <span onclick="showJobMenu(event,this)" data-internal-id="<%= job.internal_job_id || '' %>" data-url="<%= job.url || '' %>" data-log-id="<%= job.id %>" data-verdict="<%= job.ai_verdict %>" class="cursor-pointer">
+                  <%- verdictChip(job.ai_verdict, job.rejection_category) %>
+                </span>
+              </td>
+            </tr>
+            <% }); %>
+          </tbody>
+        </table>
+        <div class="md:hidden divide-y divide-gray-50">
+          <% group.jobs.forEach(function(job) { %>
+          <% const target = job.internal_job_id ? '/job/' + job.internal_job_id : (job.url || null); %>
+          <div class="px-4 py-3 hover:bg-gray-50 transition-colors<%= target ? ' cursor-pointer' : '' %>"
+               <% if (target) { %>onclick="location.href='<%= target %>'"<% } %>>
+            <div class="flex items-center justify-between gap-2 mb-0.5">
+              <span class="text-sm font-medium text-gray-700 truncate"><%= job.company %></span>
+              <span onclick="showJobMenu(event,this)" data-internal-id="<%= job.internal_job_id || '' %>" data-url="<%= job.url || '' %>" data-log-id="<%= job.id %>" data-verdict="<%= job.ai_verdict %>" class="cursor-pointer flex-shrink-0">
+                <%- verdictChip(job.ai_verdict, job.rejection_category) %>
+              </span>
+            </div>
+            <p class="text-xs text-gray-500 truncate"><%= job.title %></p>
+          </div>
+          <% }); %>
+        </div>
+      </div>
+      <% }); %>
+    </div>
 
     <% } %>
 
@@ -254,14 +329,23 @@ function verdictChip(verdict, rejectionCategory) {
 <% } %>
 
 <!-- Job context menu (shared) -->
-<div id="job-menu" class="hidden fixed z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 text-xs min-w-[140px]">
+<div id="job-menu" class="hidden fixed z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 text-xs min-w-[160px]">
   <a id="job-menu-view" href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 text-gray-700 transition-colors">View details</a>
   <a id="job-menu-link" href="#" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 text-gray-700 transition-colors">Open on LinkedIn</a>
+  <div id="job-menu-verdict-section" class="mt-1 pt-1 border-t border-gray-100">
+    <p class="px-3 py-1 text-xs font-medium text-gray-400">Change verdict</p>
+    <button onclick="menuSetVerdict('STRONG_MATCH')" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-emerald-50 text-emerald-700 w-full text-left transition-colors">✅ Strong fit</button>
+    <button onclick="menuSetVerdict('WEAK_MATCH')"   class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-amber-50 text-amber-700 w-full text-left transition-colors">⚠️ Weak fit</button>
+    <button onclick="menuSetVerdict('NO_MATCH')"     class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-red-50 text-red-600 w-full text-left transition-colors">❌ No fit</button>
+  </div>
 </div>
 
 <script>
+let _menuTargetEl = null;
+
 function showJobMenu(event, el) {
   event.stopPropagation();
+  _menuTargetEl = el;
   const internalId = el.dataset.internalId;
   const url = el.dataset.url;
   const menu = document.getElementById('job-menu');
@@ -284,9 +368,71 @@ function showJobMenu(event, el) {
   document.querySelectorAll('[id^="cost-popup-"]').forEach(el => el.classList.add('hidden'));
   const rect = el.getBoundingClientRect();
   menu.style.top = (rect.bottom + 4) + 'px';
-  menu.style.left = Math.min(rect.left, window.innerWidth - 160) + 'px';
+  menu.style.left = Math.min(rect.left, window.innerWidth - 172) + 'px';
   menu.classList.remove('hidden');
 }
+
+function verdictChipStatic(verdict) {
+  if (verdict === 'STRONG_MATCH') return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 whitespace-nowrap">✅ Strong fit</span>';
+  if (verdict === 'WEAK_MATCH')   return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 whitespace-nowrap">⚠️ Weak fit</span>';
+  if (verdict === 'NO_MATCH')     return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600 whitespace-nowrap">❌ No fit</span>';
+  if (verdict === 'DUPLICATE')    return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-600 whitespace-nowrap">🔁 Duplicate</span>';
+  if (verdict === 'BLACKLISTED')  return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 whitespace-nowrap">🚫 Blacklisted</span>';
+  if (verdict === 'FILTERED')     return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500 whitespace-nowrap">✂ Filtered</span>';
+  return verdict;
+}
+
+async function menuSetVerdict(newVerdict) {
+  const el = _menuTargetEl;
+  if (!el) return;
+  document.getElementById('job-menu').classList.add('hidden');
+
+  const current = el.dataset.verdict;
+  if (newVerdict === current) return;
+
+  const labels = { STRONG_MATCH: 'Strong fit', WEAK_MATCH: 'Weak fit', NO_MATCH: 'No fit' };
+  if (!confirm('Change verdict to "' + (labels[newVerdict] || newVerdict) + '"?')) return;
+
+  const internalId = el.dataset.internalId;
+  const logId = el.dataset.logId;
+  const endpoint = internalId
+    ? '/api/jobs/' + internalId + '/verdict'
+    : '/api/run-log/' + logId + '/verdict';
+
+  try {
+    const res = await fetch(endpoint, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ verdict: newVerdict }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      el.dataset.verdict = newVerdict;
+      if (data.internal_job_id && !internalId) {
+        el.dataset.internalId = String(data.internal_job_id);
+        document.getElementById('job-menu-view').href = '/job/' + data.internal_job_id;
+      }
+      el.innerHTML = verdictChipStatic(newVerdict);
+    } else {
+      alert(data.error || 'Failed to update verdict');
+    }
+  } catch (e) {
+    alert('Could not reach the server.');
+  }
+}
+
+function toggleLocationSplit(checked) {
+  document.querySelectorAll('.run-flat-view').forEach(el => el.classList.toggle('hidden', checked));
+  document.querySelectorAll('.run-location-view').forEach(el => el.classList.toggle('hidden', !checked));
+  localStorage.setItem('runLogsSplitByLocation', checked ? '1' : '0');
+}
+
+(function() {
+  if (localStorage.getItem('runLogsSplitByLocation') === '1') {
+    const cb = document.getElementById('location-split-checkbox');
+    if (cb) { cb.checked = true; toggleLocationSplit(true); }
+  }
+})();
 
 function toggleCostPopup(runId) {
   const popup = document.getElementById('cost-popup-' + runId);

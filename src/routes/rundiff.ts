@@ -9,6 +9,7 @@ import { getDb, type SearchRunRow } from '../db';
 const router = Router();
 
 type LogEntry = {
+  id: number;
   linkedin_job_id: string;
   title: string;
   company: string;
@@ -16,6 +17,7 @@ type LogEntry = {
   ai_score: number | null;
   ai_verdict: string;
   url: string | null;
+  internal_job_id: number | null;
 };
 
 const VERDICT_PRIORITY: Record<string, number> = {
@@ -78,13 +80,15 @@ router.get('/', (req: Request, res: Response) => {
 
   const [runNewer, runOlder] = runs;
 
-  const rawNewer = db
-    .prepare('SELECT linkedin_job_id, title, company, location, ai_score, ai_verdict, url FROM run_job_logs WHERE run_id = ?')
-    .all(runNewer.id) as LogEntry[];
+  const logQuery = `
+    SELECT rjl.id, rjl.linkedin_job_id, rjl.title, rjl.company, rjl.location,
+           rjl.ai_score, rjl.ai_verdict, rjl.url, j.id as internal_job_id
+    FROM run_job_logs rjl
+    LEFT JOIN jobs j ON j.linkedin_job_id = rjl.linkedin_job_id
+    WHERE rjl.run_id = ?`;
 
-  const rawOlder = db
-    .prepare('SELECT linkedin_job_id, title, company, location, ai_score, ai_verdict, url FROM run_job_logs WHERE run_id = ?')
-    .all(runOlder.id) as LogEntry[];
+  const rawNewer = db.prepare(logQuery).all(runNewer.id) as LogEntry[];
+  const rawOlder = db.prepare(logQuery).all(runOlder.id) as LogEntry[];
 
   const newer = dedupeByJobId(rawNewer);
   const older = dedupeByJobId(rawOlder);

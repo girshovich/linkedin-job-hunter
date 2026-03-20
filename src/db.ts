@@ -577,6 +577,19 @@ function runMigrations(db: Database): void {
     console.warn('[db] Migration v17 (blacklisted_companies.profile_id) failed (non-fatal):', (err as Error).message);
   }
 
+  // v23: add original_ai_verdict to jobs (tracks AI's first verdict before user overrides)
+  try {
+    const cols = db.prepare(`PRAGMA table_info(jobs)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'original_ai_verdict')) {
+      db.exec(`ALTER TABLE jobs ADD COLUMN original_ai_verdict TEXT`);
+      // Backfill: treat current ai_verdict as the original for pre-existing rows
+      db.exec(`UPDATE jobs SET original_ai_verdict = ai_verdict WHERE original_ai_verdict IS NULL`);
+      console.log('[db] Migration v23: jobs.original_ai_verdict column added and backfilled');
+    }
+  } catch (err) {
+    console.warn('[db] Migration v23 (original_ai_verdict) failed (non-fatal):', (err as Error).message);
+  }
+
   // v8: seed default search group from settings row if groups table is empty
   try {
     const groupCount = (
@@ -647,6 +660,7 @@ function initSchema(db: Database): void {
       seen_at               TEXT,
       group_id              INTEGER REFERENCES search_groups(id),
       provider              TEXT    NOT NULL DEFAULT 'harvestapi',
+      original_ai_verdict   TEXT,
       FOREIGN KEY (duplicate_of_job_id) REFERENCES jobs(id)
     );
 
@@ -851,6 +865,7 @@ export interface JobRow {
   user_notes: string | null;
   apply_url: string | null;
   provider: string;
+  original_ai_verdict: string | null;
 }
 
 export interface SearchRunRow {

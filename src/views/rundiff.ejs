@@ -137,17 +137,118 @@ function jobTable(jobs) {
       ? `<a href="${job.url}" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline text-xs">link</a>`
       : '<span class="text-gray-300 text-xs">—</span>';
     const loc = job.location ? `<span class="text-xs text-gray-400 truncate max-w-[180px] block">${job.location}</span>` : '';
+    const titleHtml = job.internal_job_id
+      ? `<a href="/job/${job.internal_job_id}" class="hover:text-blue-600 transition-colors block">${job.title}</a>`
+      : `<span class="block">${job.title}</span>`;
+    const chip = `<span onclick="showJobMenu(event,this)" data-internal-id="${job.internal_job_id || ''}" data-url="${job.url || ''}" data-log-id="${job.id}" data-verdict="${job.ai_verdict}" class="cursor-pointer">${verdictChip(job.ai_verdict)}</span>`;
     return `<tr class="hover:bg-gray-50 transition-colors">
       <td class="px-5 py-2.5 text-sm text-gray-700 whitespace-nowrap w-0 max-w-[180px] truncate font-medium">${job.company}</td>
       <td class="px-3 py-2.5 text-sm text-gray-900">
-        <span class="block">${job.title}</span>
+        ${titleHtml}
         ${loc}
       </td>
       <td class="px-3 py-2.5 text-xs w-0 whitespace-nowrap text-center score-badge">${score}</td>
-      <td class="px-3 py-2.5 w-0 whitespace-nowrap">${verdictChip(job.ai_verdict)}</td>
+      <td class="px-3 py-2.5 w-0 whitespace-nowrap">${chip}</td>
       <td class="pl-3 pr-5 py-2.5 w-0 whitespace-nowrap">${link}</td>
     </tr>`;
   }).join('');
   return `<table class="w-full"><tbody class="divide-y divide-gray-50">${rows}</tbody></table>`;
 }
 %>
+
+<!-- Job context menu -->
+<div id="job-menu" class="hidden fixed z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 text-xs min-w-[160px]">
+  <a id="job-menu-view" href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 text-gray-700 transition-colors">View details</a>
+  <a id="job-menu-link" href="#" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 text-gray-700 transition-colors">Open on LinkedIn</a>
+  <div class="mt-1 pt-1 border-t border-gray-100">
+    <p class="px-3 py-1 text-xs font-medium text-gray-400">Change verdict</p>
+    <button onclick="menuSetVerdict('STRONG_MATCH')" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-emerald-50 text-emerald-700 w-full text-left transition-colors">✅ Strong fit</button>
+    <button onclick="menuSetVerdict('WEAK_MATCH')"   class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-amber-50 text-amber-700 w-full text-left transition-colors">⚠️ Weak fit</button>
+    <button onclick="menuSetVerdict('NO_MATCH')"     class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-red-50 text-red-600 w-full text-left transition-colors">❌ No fit</button>
+  </div>
+</div>
+
+<script>
+let _menuTargetEl = null;
+
+function showJobMenu(event, el) {
+  event.stopPropagation();
+  _menuTargetEl = el;
+  const internalId = el.dataset.internalId;
+  const url = el.dataset.url;
+  const menu = document.getElementById('job-menu');
+  const viewLink = document.getElementById('job-menu-view');
+  const extLink = document.getElementById('job-menu-link');
+
+  if (internalId) {
+    viewLink.href = '/job/' + internalId;
+    viewLink.classList.remove('hidden');
+  } else {
+    viewLink.classList.add('hidden');
+  }
+  if (url) {
+    extLink.href = url;
+    extLink.classList.remove('hidden');
+  } else {
+    extLink.classList.add('hidden');
+  }
+
+  const rect = el.getBoundingClientRect();
+  menu.style.top = (rect.bottom + 4) + 'px';
+  menu.style.left = Math.min(rect.left, window.innerWidth - 172) + 'px';
+  menu.classList.remove('hidden');
+}
+
+function verdictChipStatic(verdict) {
+  if (verdict === 'STRONG_MATCH') return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 whitespace-nowrap">Strong fit</span>';
+  if (verdict === 'WEAK_MATCH')   return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 whitespace-nowrap">Weak fit</span>';
+  if (verdict === 'NO_MATCH')     return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600 whitespace-nowrap">No fit</span>';
+  if (verdict === 'DUPLICATE')    return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-600 whitespace-nowrap">Duplicate</span>';
+  if (verdict === 'BLACKLISTED')  return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 whitespace-nowrap">Blacklisted</span>';
+  if (verdict === 'FILTERED')     return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500 whitespace-nowrap">Filtered</span>';
+  return verdict;
+}
+
+async function menuSetVerdict(newVerdict) {
+  const el = _menuTargetEl;
+  if (!el) return;
+  document.getElementById('job-menu').classList.add('hidden');
+
+  const current = el.dataset.verdict;
+  if (newVerdict === current) return;
+
+  const labels = { STRONG_MATCH: 'Strong fit', WEAK_MATCH: 'Weak fit', NO_MATCH: 'No fit' };
+  if (!confirm('Change verdict to "' + (labels[newVerdict] || newVerdict) + '"?')) return;
+
+  const internalId = el.dataset.internalId;
+  const logId = el.dataset.logId;
+  const endpoint = internalId
+    ? '/api/jobs/' + internalId + '/verdict'
+    : '/api/run-log/' + logId + '/verdict';
+
+  try {
+    const res = await fetch(endpoint, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ verdict: newVerdict }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      el.dataset.verdict = newVerdict;
+      if (data.internal_job_id && !internalId) {
+        el.dataset.internalId = String(data.internal_job_id);
+        document.getElementById('job-menu-view').href = '/job/' + data.internal_job_id;
+      }
+      el.innerHTML = verdictChipStatic(newVerdict);
+    } else {
+      alert(data.error || 'Failed to update verdict');
+    }
+  } catch (e) {
+    alert('Could not reach the server.');
+  }
+}
+
+document.addEventListener('click', () => {
+  document.getElementById('job-menu').classList.add('hidden');
+});
+</script>

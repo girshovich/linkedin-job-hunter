@@ -148,6 +148,28 @@ router.get('/', (req: Request, res: Response) => {
     ORDER BY month
   `).all(profileId) as MonthVerdictRow[];
 
+  // Strong match quality — last 14 days
+  interface StrongQualityRow { day: string; category: string; count: number }
+  const strongQualityRaw = db.prepare<StrongQualityRow>(`
+    SELECT
+      strftime('%Y-%m-%d', fetched_at) as day,
+      CASE
+        WHEN ai_verdict = 'STRONG_MATCH' AND (original_ai_verdict = 'STRONG_MATCH' OR original_ai_verdict IS NULL) THEN 'kept'
+        WHEN ai_verdict = 'STRONG_MATCH' AND original_ai_verdict != 'STRONG_MATCH' THEN 'promoted'
+        WHEN ai_verdict != 'STRONG_MATCH' AND original_ai_verdict = 'STRONG_MATCH' THEN 'demoted'
+        ELSE NULL
+      END as category,
+      COUNT(*) as count
+    FROM jobs
+    WHERE profile_id = ?
+      AND is_duplicate = 0
+      AND (ai_verdict = 'STRONG_MATCH' OR original_ai_verdict = 'STRONG_MATCH')
+      AND date(fetched_at) >= date('now', '-13 days')
+    GROUP BY day, category
+    HAVING category IS NOT NULL
+    ORDER BY day
+  `).all(profileId) as StrongQualityRow[];
+
   res.render('analytics', {
     totals,
     statusBreakdown,
@@ -155,6 +177,7 @@ router.get('/', (req: Request, res: Response) => {
     countryStats,
     dailyGroupRaw,
     monthlyRaw,
+    strongQualityRaw,
     groups,
     title: 'Stats',
   });

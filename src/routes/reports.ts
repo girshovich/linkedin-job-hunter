@@ -35,7 +35,7 @@ router.get('/', (req: Request, res: Response) => {
   const profileId = req.profile.id;
 
   const runs = db
-    .prepare(`SELECT * FROM search_runs WHERE profile_id = ? ORDER BY ran_at DESC LIMIT 100`)
+    .prepare(`SELECT * FROM search_runs WHERE profile_id = ? ORDER BY ran_at DESC LIMIT 30`)
     .all(profileId) as SearchRunRow[];
 
   const runsWithLogs: RunWithLogs[] = runs.map((run) => {

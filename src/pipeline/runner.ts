@@ -169,8 +169,8 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
         profile_id, linkedin_job_id, title, company, location, work_mode, description,
         url, posted_date, fetched_at, ai_score, ai_rationale, ai_summary, ai_verdict,
         is_duplicate, duplicate_of_job_id, seen, seen_at, group_id, rejection_category,
-        apply_url, provider
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        apply_url, provider, original_ai_verdict
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const updateApplyUrl = db.prepare(`
@@ -445,7 +445,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
               0, null, null, 'BLACKLISTED',
               0, null, 0, null,
               group.id, null,
-              job.applyUrl || null, job.provider || 'harvestapi',
+              job.applyUrl || null, job.provider || 'harvestapi', 'BLACKLISTED',
             );
             if (job.applyUrl) updateApplyUrl.run(job.applyUrl, job.jobId, profileId);
           }
@@ -469,7 +469,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
               isDuplicate ? 1 : 0, duplicateOfId || null,
               isDuplicate ? 1 : 0, isDuplicate ? now : null,
               group.id, scored.rejectionCategory || null,
-              job.applyUrl || null, job.provider || 'harvestapi',
+              job.applyUrl || null, job.provider || 'harvestapi', scored.verdict,
             );
             if (job.applyUrl) updateApplyUrl.run(job.applyUrl, job.jobId, profileId);
           }

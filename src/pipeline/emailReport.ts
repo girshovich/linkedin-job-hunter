@@ -231,6 +231,7 @@ export async function sendTestEmail(recipientEmail: string, resendApiKey: string
       user_notes: null,
       apply_url: null,
       provider: 'harvestapi',
+      original_ai_verdict: 'STRONG_MATCH',
     },
   ];
 

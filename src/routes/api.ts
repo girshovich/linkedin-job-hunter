@@ -8,7 +8,7 @@ import type { DateRange } from '../pipeline/fetcher';
 import { sendTestEmail } from '../pipeline/emailReport';
 import { fetchJobs } from '../pipeline/fetcher';
 import { startSchedule, stopSchedule, getScheduleStatus } from '../pipeline/scheduler';
-import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow } from '../db';
+import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow, type RunJobLogRow } from '../db';
 import { config } from '../config';
 import { checkOpenAiBalance } from '../utils/openaiBalance';
 
@@ -574,6 +574,62 @@ router.patch('/jobs/:id/verdict', (req: Request, res: Response) => {
   );
 
   res.json({ success: true });
+});
+
+// PATCH /api/run-log/:id/verdict — override verdict for a run log entry; inserts into jobs table if not yet stored
+router.patch('/run-log/:id/verdict', (req: Request, res: Response) => {
+  const logId = parseInt(req.params.id, 10);
+  if (isNaN(logId)) { res.status(400).json({ success: false, error: 'Invalid log id.' }); return; }
+
+  const b = req.body as Record<string, unknown>;
+  const verdict = String(b.verdict || '').trim();
+  const allowed = ['STRONG_MATCH', 'WEAK_MATCH', 'NO_MATCH', 'DUPLICATE'];
+  if (!allowed.includes(verdict)) {
+    res.status(400).json({ success: false, error: `Invalid verdict. Must be one of: ${allowed.join(', ')}` });
+    return;
+  }
+
+  const db = getDb();
+  const profileId = req.profile.id;
+
+  const log = db.prepare(`
+    SELECT rjl.* FROM run_job_logs rjl
+    INNER JOIN search_runs sr ON sr.id = rjl.run_id
+    WHERE rjl.id = ? AND sr.profile_id = ?
+  `).get(logId, profileId) as RunJobLogRow | undefined;
+
+  if (!log) {
+    res.status(404).json({ success: false, error: 'Log entry not found.' });
+    return;
+  }
+
+  db.prepare('UPDATE run_job_logs SET ai_verdict = ? WHERE id = ?').run(verdict, logId);
+
+  const existingJob = db.prepare('SELECT id FROM jobs WHERE linkedin_job_id = ?').get(log.linkedin_job_id) as { id: number } | undefined;
+  let internalJobId: number;
+  if (existingJob) {
+    db.prepare('UPDATE jobs SET ai_verdict = ?, is_duplicate = ? WHERE id = ?').run(
+      verdict, verdict === 'DUPLICATE' ? 1 : 0, existingJob.id,
+    );
+    internalJobId = existingJob.id;
+  } else {
+    const result = db.prepare(`
+      INSERT INTO jobs (profile_id, linkedin_job_id, title, company, location, description, url,
+                        fetched_at, ai_score, ai_rationale, ai_verdict, is_duplicate, seen, group_id, rejection_category,
+                        original_ai_verdict)
+      VALUES (?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+    `).run(
+      profileId, log.linkedin_job_id, log.title, log.company, log.location,
+      log.url, log.logged_at,
+      log.ai_score ?? 0, log.ai_rationale,
+      verdict, verdict === 'DUPLICATE' ? 1 : 0,
+      log.group_id, log.rejection_category,
+      log.ai_verdict,
+    );
+    internalJobId = result.lastInsertRowid;
+  }
+
+  res.json({ success: true, internal_job_id: internalJobId });
 });
 
 // PATCH /api/jobs/:id/applied — mark/unmark as applied
