@@ -190,9 +190,7 @@ function verdictChip(verdict, rejectionCategory) {
         <tbody class="divide-y divide-gray-50">
           <% flatJobs.forEach(function(job) { %>
           <tr class="hover:bg-gray-50 transition-colors">
-            <td class="px-5 py-2.5 text-sm text-gray-600 whitespace-nowrap w-0 max-w-[160px] truncate">
-              <%= job.company %>
-            </td>
+            <td class="px-5 py-2.5 text-sm text-gray-600 whitespace-nowrap w-0 max-w-[200px] truncate"><%= job.company %></td>
             <td class="px-3 py-2.5 text-sm text-gray-900">
               <% if (job.internal_job_id) { %>
                 <a href="/job/<%= job.internal_job_id %>" class="hover:text-blue-600 transition-colors"><%= job.title %></a>
@@ -201,24 +199,20 @@ function verdictChip(verdict, rejectionCategory) {
               <% } %>
               <% if (job.location) { %><span class="block text-xs text-gray-400 truncate"><%= job.location %></span><% } %>
             </td>
-            <td class="px-3 py-2.5 text-xs w-0 text-center whitespace-nowrap">
-              <% if (job.ai_score != null) { %>
-                <span class="<%= job.ai_score >= 71 ? 'text-emerald-600 font-semibold' : job.ai_score >= 51 ? 'text-yellow-600 font-semibold' : 'text-red-500' %>"><%= job.ai_score %></span>
-              <% } else { %>
-                <span class="text-gray-300">—</span>
-              <% } %>
-            </td>
-            <td class="px-3 py-2.5 text-xs w-0 whitespace-nowrap">
-              <% if (job.url) { %>
-                <a href="<%= job.url %>" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline">link</a>
-              <% } else { %>
-                <span class="text-gray-300">—</span>
-              <% } %>
-            </td>
-            <td class="pl-3 pr-5 py-2.5 text-right w-0 whitespace-nowrap">
+            <td class="pl-3 py-2.5 w-0 whitespace-nowrap text-right">
               <span onclick="showJobMenu(event,this)" data-internal-id="<%= job.internal_job_id || '' %>" data-url="<%= job.url || '' %>" data-log-id="<%= job.id %>" data-verdict="<%= job.ai_verdict %>" class="cursor-pointer">
                 <%- verdictChip(job.ai_verdict, job.rejection_category) %>
               </span>
+            </td>
+            <td class="py-2.5 px-1 w-0 whitespace-nowrap text-right" style="min-width:2.25rem;">
+              <% if (job.ai_score != null) { %><span class="text-xs <%= job.ai_score >= 71 ? 'text-emerald-600 font-semibold' : job.ai_score >= 51 ? 'text-yellow-600 font-semibold' : 'text-red-500' %>"><%= job.ai_score %></span><% } %>
+            </td>
+            <td class="pl-2 pr-5 py-2.5 w-0 whitespace-nowrap">
+              <% if (job.url) { %>
+                <a href="<%= job.url %>" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline text-xs">link</a>
+              <% } else { %>
+                <span class="text-gray-300 text-xs">—</span>
+              <% } %>
             </td>
           </tr>
           <% }); %>
@@ -231,9 +225,12 @@ function verdictChip(verdict, rejectionCategory) {
              <% if (target) { %>onclick="location.href='<%= target %>'"<% } %>>
           <div class="flex items-center justify-between gap-2 mb-0.5">
             <span class="text-sm font-medium text-gray-700 truncate"><%= job.company %></span>
-            <span onclick="showJobMenu(event,this)" data-internal-id="<%= job.internal_job_id || '' %>" data-url="<%= job.url || '' %>" data-log-id="<%= job.id %>" data-verdict="<%= job.ai_verdict %>" class="cursor-pointer flex-shrink-0">
-              <%- verdictChip(job.ai_verdict, job.rejection_category) %>
-            </span>
+            <div class="flex items-center gap-1.5 flex-shrink-0">
+              <span onclick="showJobMenu(event,this)" data-internal-id="<%= job.internal_job_id || '' %>" data-url="<%= job.url || '' %>" data-log-id="<%= job.id %>" data-verdict="<%= job.ai_verdict %>" class="cursor-pointer">
+                <%- verdictChip(job.ai_verdict, job.rejection_category) %>
+              </span>
+              <span class="text-xs text-right" style="min-width:1.75rem;display:inline-block;"><% if (job.ai_score != null) { %><span class="<%= job.ai_score >= 71 ? 'text-emerald-600 font-semibold' : job.ai_score >= 51 ? 'text-yellow-600 font-semibold' : 'text-red-500' %>"><%= job.ai_score %></span><% } %></span>
+            </div>
           </div>
           <p class="text-xs text-gray-500 truncate"><%= job.title %></p>
           <% if (job.location) { %><p class="text-xs text-gray-400 truncate mt-0.5"><%= job.location %></p><% } %>
@@ -259,9 +256,7 @@ function verdictChip(verdict, rejectionCategory) {
                 <span class="block"><%= jdt.date %></span>
                 <span class="block text-gray-300"><%= jdt.time %></span>
               </td>
-              <td class="px-3 py-2.5 text-sm text-gray-600 whitespace-nowrap w-0 max-w-[160px] truncate">
-                <%= job.company %>
-              </td>
+              <td class="px-3 py-2.5 text-sm text-gray-600 whitespace-nowrap w-0 max-w-[180px] truncate"><%= job.company %></td>
               <td class="px-3 py-2.5 text-sm text-gray-900">
                 <% if (job.internal_job_id) { %>
                   <a href="/job/<%= job.internal_job_id %>" class="hover:text-blue-600 transition-colors"><%= job.title %></a>
@@ -269,24 +264,20 @@ function verdictChip(verdict, rejectionCategory) {
                   <%= job.title %>
                 <% } %>
               </td>
-              <td class="px-3 py-2.5 text-xs w-0 text-center whitespace-nowrap">
-                <% if (job.ai_score != null) { %>
-                  <span class="<%= job.ai_score >= 71 ? 'text-emerald-600 font-semibold' : job.ai_score >= 51 ? 'text-yellow-600 font-semibold' : 'text-red-500' %>"><%= job.ai_score %></span>
-                <% } else { %>
-                  <span class="text-gray-300">—</span>
-                <% } %>
-              </td>
-              <td class="px-3 py-2.5 text-xs w-0 whitespace-nowrap">
-                <% if (job.url) { %>
-                  <a href="<%= job.url %>" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline">link</a>
-                <% } else { %>
-                  <span class="text-gray-300">—</span>
-                <% } %>
-              </td>
-              <td class="pl-3 pr-5 py-2.5 text-right w-0 whitespace-nowrap">
+              <td class="pl-3 py-2.5 w-0 whitespace-nowrap text-right">
                 <span onclick="showJobMenu(event,this)" data-internal-id="<%= job.internal_job_id || '' %>" data-url="<%= job.url || '' %>" data-log-id="<%= job.id %>" data-verdict="<%= job.ai_verdict %>" class="cursor-pointer">
                   <%- verdictChip(job.ai_verdict, job.rejection_category) %>
                 </span>
+              </td>
+              <td class="py-2.5 px-1 w-0 whitespace-nowrap text-right" style="min-width:2.25rem;">
+                <% if (job.ai_score != null) { %><span class="text-xs <%= job.ai_score >= 71 ? 'text-emerald-600 font-semibold' : job.ai_score >= 51 ? 'text-yellow-600 font-semibold' : 'text-red-500' %>"><%= job.ai_score %></span><% } %>
+              </td>
+              <td class="pl-2 pr-5 py-2.5 w-0 whitespace-nowrap">
+                <% if (job.url) { %>
+                  <a href="<%= job.url %>" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline text-xs">link</a>
+                <% } else { %>
+                  <span class="text-gray-300 text-xs">—</span>
+                <% } %>
               </td>
             </tr>
             <% }); %>
@@ -299,9 +290,12 @@ function verdictChip(verdict, rejectionCategory) {
                <% if (target) { %>onclick="location.href='<%= target %>'"<% } %>>
             <div class="flex items-center justify-between gap-2 mb-0.5">
               <span class="text-sm font-medium text-gray-700 truncate"><%= job.company %></span>
-              <span onclick="showJobMenu(event,this)" data-internal-id="<%= job.internal_job_id || '' %>" data-url="<%= job.url || '' %>" data-log-id="<%= job.id %>" data-verdict="<%= job.ai_verdict %>" class="cursor-pointer flex-shrink-0">
-                <%- verdictChip(job.ai_verdict, job.rejection_category) %>
-              </span>
+              <div class="flex items-center gap-1.5 flex-shrink-0">
+                <span onclick="showJobMenu(event,this)" data-internal-id="<%= job.internal_job_id || '' %>" data-url="<%= job.url || '' %>" data-log-id="<%= job.id %>" data-verdict="<%= job.ai_verdict %>" class="cursor-pointer">
+                  <%- verdictChip(job.ai_verdict, job.rejection_category) %>
+                </span>
+                <span class="text-xs text-right" style="min-width:1.75rem;display:inline-block;"><% if (job.ai_score != null) { %><span class="<%= job.ai_score >= 71 ? 'text-emerald-600 font-semibold' : job.ai_score >= 51 ? 'text-yellow-600 font-semibold' : 'text-red-500' %>"><%= job.ai_score %></span><% } %></span>
+              </div>
             </div>
             <p class="text-xs text-gray-500 truncate"><%= job.title %></p>
           </div>

@@ -42,7 +42,7 @@ function scoreColor(score) {
 <% } else { %>
 
 <!-- Run summary -->
-<div class="grid grid-cols-2 gap-3 mb-6">
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
   <div class="bg-white border border-gray-200 rounded-xl px-5 py-4">
     <p class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-1">Newer run #<%= runNewer.id %></p>
     <p class="text-sm font-semibold text-gray-900"><%= fmtDate(runNewer.ran_at) %></p>
@@ -57,23 +57,10 @@ function scoreColor(score) {
   </div>
 </div>
 
-<!-- Summary pills -->
-<div class="flex gap-3 mb-6 flex-wrap">
-  <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 text-sm font-medium">
-    <span class="font-bold"><%= onlyInNewer.length %></span> new this run
-  </span>
-  <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-50 text-orange-700 text-sm font-medium">
-    <span class="font-bold"><%= onlyInOlder.length %></span> dropped since last run
-  </span>
-  <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 text-gray-600 text-sm font-medium">
-    <span class="font-bold"><%= inBoth.length %></span> seen in both
-  </span>
-</div>
-
 <div class="space-y-3">
 
 <!-- New this run -->
-<details open class="group bg-white rounded-xl border border-blue-200 shadow-sm overflow-hidden">
+<details class="group bg-white rounded-xl border border-blue-200 shadow-sm overflow-hidden">
   <summary class="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none hover:bg-blue-50/50 transition-colors">
     <div class="flex items-center gap-3">
       <svg class="w-4 h-4 text-gray-400 flex-shrink-0 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -82,7 +69,7 @@ function scoreColor(score) {
       <span class="font-semibold text-gray-900 text-sm">Only in new run</span>
       <span class="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-medium"><%= onlyInNewer.length %></span>
     </div>
-    <span class="text-xs text-gray-400">run #<%= runNewer.id %></span>
+    <span class="text-xs text-gray-400 whitespace-nowrap">run #<%= runNewer.id %></span>
   </summary>
   <div class="border-t border-gray-100">
     <%- jobTable(onlyInNewer) %>
@@ -96,10 +83,10 @@ function scoreColor(score) {
       <svg class="w-4 h-4 text-gray-400 flex-shrink-0 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
       </svg>
-      <span class="font-semibold text-gray-900 text-sm">Seen in both runs</span>
+      <span class="font-semibold text-gray-900 text-sm whitespace-nowrap">Seen in both</span>
       <span class="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full font-medium"><%= inBoth.length %></span>
     </div>
-    <span class="text-xs text-gray-400">verdict from run #<%= runOlder.id %></span>
+    <span class="text-xs text-gray-400 whitespace-nowrap">verdict from run #<%= runOlder.id %></span>
   </summary>
   <div class="border-t border-gray-100">
     <%- jobTable(inBoth) %>
@@ -116,7 +103,7 @@ function scoreColor(score) {
       <span class="font-semibold text-gray-900 text-sm">Only in previous run</span>
       <span class="text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full font-medium"><%= onlyInOlder.length %></span>
     </div>
-    <span class="text-xs text-gray-400">run #<%= runOlder.id %></span>
+    <span class="text-xs text-gray-400 whitespace-nowrap">run #<%= runOlder.id %></span>
   </summary>
   <div class="border-t border-gray-100">
     <%- jobTable(onlyInOlder) %>
@@ -131,8 +118,10 @@ function jobTable(jobs) {
   if (jobs.length === 0) {
     return '<p class="px-5 py-6 text-sm text-gray-400 text-center">No jobs.</p>';
   }
-  let rows = jobs.map(job => {
-    const score = job.ai_score != null ? `<span class="${scoreColor(job.ai_score)}">${job.ai_score}</span>` : '<span class="text-gray-300">—</span>';
+
+  // Desktop table rows
+  let desktopRows = jobs.map(job => {
+    const scoreCell = `<td class="py-2.5 px-1 w-0 whitespace-nowrap text-right" style="min-width:2.25rem;">${job.ai_score != null ? `<span class="text-xs ${scoreColor(job.ai_score)}">${job.ai_score}</span>` : ''}</td>`;
     const link = job.url
       ? `<a href="${job.url}" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline text-xs">link</a>`
       : '<span class="text-gray-300 text-xs">—</span>';
@@ -142,17 +131,34 @@ function jobTable(jobs) {
       : `<span class="block">${job.title}</span>`;
     const chip = `<span onclick="showJobMenu(event,this)" data-internal-id="${job.internal_job_id || ''}" data-url="${job.url || ''}" data-log-id="${job.id}" data-verdict="${job.ai_verdict}" class="cursor-pointer">${verdictChip(job.ai_verdict)}</span>`;
     return `<tr class="hover:bg-gray-50 transition-colors">
-      <td class="px-5 py-2.5 text-sm text-gray-700 whitespace-nowrap w-0 max-w-[180px] truncate font-medium">${job.company}</td>
+      <td class="px-5 py-2.5 text-sm text-gray-700 font-medium whitespace-nowrap w-0 max-w-[200px] truncate">${job.company}</td>
       <td class="px-3 py-2.5 text-sm text-gray-900">
         ${titleHtml}
         ${loc}
       </td>
-      <td class="px-3 py-2.5 text-xs w-0 whitespace-nowrap text-center score-badge">${score}</td>
-      <td class="px-3 py-2.5 w-0 whitespace-nowrap">${chip}</td>
-      <td class="pl-3 pr-5 py-2.5 w-0 whitespace-nowrap">${link}</td>
+      <td class="pl-3 py-2.5 w-0 whitespace-nowrap text-right">${chip}</td>
+      ${scoreCell}
+      <td class="pl-2 pr-5 py-2.5 w-0 whitespace-nowrap">${link}</td>
     </tr>`;
   }).join('');
-  return `<table class="w-full"><tbody class="divide-y divide-gray-50">${rows}</tbody></table>`;
+
+  // Mobile cards
+  let mobileCards = jobs.map(job => {
+    const target = job.internal_job_id ? `/job/${job.internal_job_id}` : (job.url || null);
+    const chip = `<span onclick="showJobMenu(event,this)" data-internal-id="${job.internal_job_id || ''}" data-url="${job.url || ''}" data-log-id="${job.id}" data-verdict="${job.ai_verdict}" class="cursor-pointer">${verdictChip(job.ai_verdict)}</span>`;
+    const scoreSpan = `<span class="text-xs text-right" style="min-width:1.75rem;display:inline-block;">${job.ai_score != null ? `<span class="${scoreColor(job.ai_score)}">${job.ai_score}</span>` : ''}</span>`;
+    const locHtml = job.location ? `<p class="text-xs text-gray-400 truncate mt-0.5">${job.location}</p>` : '';
+    return `<div class="px-4 py-3 hover:bg-gray-50 transition-colors${target ? ' cursor-pointer' : ''}"${target ? ` onclick="location.href='${target}'"` : ''}>
+      <div class="flex items-center justify-between gap-2 mb-0.5">
+        <span class="text-sm font-medium text-gray-700 truncate">${job.company}</span>
+        <div class="flex items-center gap-1.5 flex-shrink-0">${chip}${scoreSpan}</div>
+      </div>
+      <p class="text-xs text-gray-500 truncate">${job.title}</p>
+      ${locHtml}
+    </div>`;
+  }).join('');
+
+  return `<table class="hidden md:table w-full"><tbody class="divide-y divide-gray-50">${desktopRows}</tbody></table><div class="md:hidden divide-y divide-gray-50">${mobileCards}</div>`;
 }
 %>
 
