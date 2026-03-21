@@ -261,7 +261,7 @@ function renderQualityChart(containerId, legendId, rawData, periods, getLabel, g
   }), 1);
 
   const container = document.getElementById(containerId);
-  container.style.height = (BAR_H + 36) + 'px';
+  container.style.height = (BAR_H + 46) + 'px';
   container.style.minWidth = (periods.length * 36 + (periods.length - 1) * 6) + 'px';
   container.innerHTML = periods.map(p => {
     const cats = dataMap[p];
@@ -281,7 +281,7 @@ function renderQualityChart(containerId, legendId, rawData, periods, getLabel, g
     const label = getLabel(p);
     const tipData = JSON.stringify({ label, total, lines: tipLines });
     const safeData = tipData.replace(/"/g,'&quot;');
-    return `<div style="flex:1;position:relative;padding-top:16px;padding-bottom:20px;">
+    return `<div style="flex:1;position:relative;padding-top:16px;padding-bottom:30px;">
       <div style="position:relative;width:100%;height:${BAR_H}px;display:flex;align-items:flex-end;cursor:default;"
            data-qtip="${safeData}" onmouseenter="showQTip(event,this)" onmouseleave="hideTip()">
         <div style="width:100%;height:${totalH}px;display:flex;flex-direction:column;border-radius:2px 2px 0 0;overflow:hidden;">${segs}</div>
@@ -317,7 +317,13 @@ renderQualityChart(
 renderQualityChart(
   'quality-monthly-chart', 'quality-monthly-legend', QUALITY_MONTHLY_RAW,
   getLastNMonths(12),
-  m => MN[parseInt(m.slice(5))-1] + ' \'' + m.slice(2,4),
+  m => MN[parseInt(m.slice(5))-1] + '<br>\'' + m.slice(2,4),
   row => row.month
 );
+
+// Scroll charts to show the most recent (rightmost) data on load
+['quality-chart', 'quality-monthly-chart'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el && el.parentElement) el.parentElement.scrollLeft = el.parentElement.scrollWidth;
+});
 </script>
