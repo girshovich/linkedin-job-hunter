@@ -13,6 +13,15 @@ function statusColor(s) {
   if (s === 'partial_error') return 'text-yellow-700 bg-yellow-50';
   return 'text-red-700 bg-red-50';
 }
+function verdictChip(verdict) {
+  const chips = {
+    STRONG_MATCH: '<span class="px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700 whitespace-nowrap">Strong ▾</span>',
+    WEAK_MATCH:   '<span class="px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-50 text-yellow-700 whitespace-nowrap">Weak ▾</span>',
+    NO_MATCH:     '<span class="px-1.5 py-0.5 rounded text-xs font-medium bg-red-50 text-red-500 whitespace-nowrap">No match ▾</span>',
+    DUPLICATE:    '<span class="px-1.5 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-600 whitespace-nowrap">Dup ▾</span>',
+  };
+  return chips[verdict] || '';
+}
 %>
 
 <!-- Page header -->
@@ -208,6 +217,7 @@ function statusColor(s) {
               <p class="text-xs text-gray-400 mt-0.5 truncate"><%= job.company %><% if (job.location) { %> · <%= job.location %><% } %></p>
             </div>
             <div class="flex items-center gap-2 flex-shrink-0">
+              <button class="verdict-btn" data-job-id="<%= job.id %>" data-verdict="<%= job.is_duplicate ? 'DUPLICATE' : job.ai_verdict %>" data-chip-style="compact"><%- verdictChip(job.is_duplicate ? 'DUPLICATE' : job.ai_verdict) %></button>
               <button onclick="quickToggleApplied(event,<%= job.id %>,this)"
                       data-applied="<%= job.applied ? '1' : '0' %>"
                       class="<%= job.applied ? 'text-xs px-2 py-0.5 rounded-full bg-emerald-500 text-white border border-emerald-500 hover:bg-emerald-600 transition-colors whitespace-nowrap' : 'text-xs px-2 py-0.5 rounded-full border border-gray-200 text-gray-400 hover:border-gray-400 hover:text-gray-600 transition-colors whitespace-nowrap' %>"

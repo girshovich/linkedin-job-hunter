@@ -15,6 +15,15 @@ function stripMd(text) {
   if (!text) return '';
   return String(text).replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*/g, '');
 }
+function verdictChip(verdict) {
+  const chips = {
+    STRONG_MATCH: '<span class="px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700 whitespace-nowrap">Strong ▾</span>',
+    WEAK_MATCH:   '<span class="px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-50 text-yellow-700 whitespace-nowrap">Weak ▾</span>',
+    NO_MATCH:     '<span class="px-1.5 py-0.5 rounded text-xs font-medium bg-red-50 text-red-500 whitespace-nowrap">No match ▾</span>',
+    DUPLICATE:    '<span class="px-1.5 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-600 whitespace-nowrap">Dup ▾</span>',
+  };
+  return chips[verdict] || '';
+}
 %>
 
 <!-- Page header -->
@@ -69,7 +78,11 @@ function stripMd(text) {
 
 <%# Shared table macro — renders group headers + job rows for any groups array %>
 <%
-function renderTable(groups, idPrefix) {
+function renderTable(groups, idPrefix, hideCol) {
+  // hideCol: 'date' when grouped by date, 'location' when grouped by location
+  const showDate = hideCol !== 'date';
+  const showLoc  = hideCol !== 'location';
+  const colCount = 7 + (showDate ? 1 : 0) + (showLoc ? 1 : 0); // always 8
   let html = '<div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">';
   html += '<table class="w-full" style="table-layout:fixed;">';
   html += '<colgroup>';
@@ -77,15 +90,16 @@ function renderTable(groups, idPrefix) {
   html += '<col style="width:190px;">';
   html += '<col>';
   html += '<col style="width:50px;">';
-  html += '<col style="width:80px;">';
-  html += '<col style="width:140px;">';
+  html += '<col style="width:88px;">';
+  if (showDate) html += '<col style="width:80px;">';
+  if (showLoc)  html += '<col style="width:140px;">';
   html += '<col style="width:110px;">';
   html += '<col style="width:28px;">';
   html += '</colgroup><tbody>';
   groups.forEach((group, gi) => {
     const label = group.location || group.label;
     html += `<tr class="bg-gray-50 cursor-pointer select-none" onclick="toggleGroup('${idPrefix}',${gi})">`;
-    html += `<td colspan="8" class="px-5 py-3.5 ${gi > 0 ? 'border-t border-gray-200' : ''}">`;
+    html += `<td colspan="${colCount}" class="px-5 py-3.5 ${gi > 0 ? 'border-t border-gray-200' : ''}">`;
     html += '<div class="flex items-center justify-between">';
     html += '<div class="flex items-center gap-2.5">';
     html += `<svg id="chevron-${idPrefix}-${gi}" style="width:13px;height:13px;flex-shrink:0;transform:rotate(90deg);transition:transform 0.15s;" fill="none" stroke="#9ca3af" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>`;
@@ -94,15 +108,19 @@ function renderTable(groups, idPrefix) {
     html += `<span class="text-xs text-gray-400 font-medium">${group.jobs.length} job${group.jobs.length !== 1 ? 's' : ''}</span>`;
     html += '</div></td></tr>';
     group.jobs.forEach(job => {
+      const jobVerdict = job.is_duplicate ? 'DUPLICATE' : job.ai_verdict;
       html += `<tr class="job-row-${idPrefix}-${gi} border-t border-gray-100 hover:bg-blue-50/30 transition-colors cursor-pointer" onclick="jobRowClick(event, '/job/${job.id}?from=jobs')">`;
       html += `<td class="pl-5 pr-3 py-3.5 align-top" style="overflow:hidden;"><span class="text-sm font-semibold text-gray-600 leading-snug" style="display:block;word-break:break-word;">${escHtml(job.company)}</span></td>`;
       html += `<td class="px-3 py-3.5 align-top" style="overflow:hidden;"><span class="text-sm font-semibold text-gray-900 leading-snug" style="display:block;">${escHtml(job.title)}</span></td>`;
       const summary = job.ai_summary ? escHtml(stripMd(job.ai_summary)) : '<span class="text-gray-300 italic">—</span>';
       html += `<td class="px-3 py-3.5 align-top text-xs leading-relaxed text-gray-600" style="overflow:hidden;"><span style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">${summary}</span></td>`;
       html += `<td class="px-3 py-3.5 text-center align-top" style="white-space:nowrap;"><span class="inline-block font-bold text-xs score-badge ${scoreTextColor(job.ai_score)} px-2 rounded">${job.ai_score}%</span></td>`;
-      html += `<td class="pl-5 pr-3 py-3.5 text-xs text-gray-600 align-top font-medium">${fmtDate(job.fetched_at)}</td>`;
-      const loc = job.location ? `<span class="text-xs text-gray-500 leading-snug" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escHtml(job.location)}</span>` : '<span class="text-gray-300 text-xs">—</span>';
-      html += `<td class="px-3 py-3.5 align-top">${loc}</td>`;
+      html += `<td class="px-2 py-3.5 align-top"><button class="verdict-btn" data-job-id="${job.id}" data-verdict="${jobVerdict}" data-chip-style="compact">${verdictChip(jobVerdict)}</button></td>`;
+      if (showDate) html += `<td class="pl-3 pr-3 py-3.5 text-xs text-gray-600 align-top font-medium">${fmtDate(job.fetched_at)}</td>`;
+      if (showLoc) {
+        const loc = job.location ? `<span class="text-xs text-gray-500 leading-snug" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escHtml(job.location)}</span>` : '<span class="text-gray-300 text-xs">—</span>';
+        html += `<td class="px-3 py-3.5 align-top">${loc}</td>`;
+      }
       const appliedClass = job.applied
         ? 'text-xs px-2 py-0.5 rounded-full bg-emerald-500 text-white border border-emerald-500 hover:bg-emerald-600 transition-colors whitespace-nowrap'
         : 'text-xs px-2 py-0.5 rounded-full border border-gray-200 text-gray-400 hover:border-gray-400 hover:text-gray-600 transition-colors whitespace-nowrap';
@@ -152,9 +170,10 @@ function renderCards(groups, idPrefix) {
         ? '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>'
         : '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>';
       html += `<div class="job-card-m-${idPrefix}-${gi} bg-white rounded-xl border border-gray-200 shadow-sm p-4 cursor-pointer" onclick="jobRowClick(event, '/job/${job.id}?from=jobs')">`;
+      const cardVerdict = job.is_duplicate ? 'DUPLICATE' : job.ai_verdict;
       html += `<div class="flex items-start justify-between gap-2 mb-2">`;
       html += `<div class="flex-1 min-w-0"><div class="font-semibold text-gray-900 text-sm leading-snug">${escHtml(job.title)}</div><div class="text-xs text-gray-500 mt-0.5">${escHtml(job.company)}</div></div>`;
-      html += `<span class="inline-block font-bold text-xs score-badge ${scoreColor} px-2 py-0.5 rounded flex-shrink-0">${job.ai_score}%</span>`;
+      html += `<div class="flex flex-col items-end gap-1 flex-shrink-0"><span class="inline-block font-bold text-xs score-badge ${scoreColor} px-2 py-0.5 rounded">${job.ai_score}%</span><button class="verdict-btn" data-job-id="${job.id}" data-verdict="${cardVerdict}" data-chip-style="compact">${verdictChip(cardVerdict)}</button></div>`;
       html += `</div>`;
       if (summary) {
         html += `<div class="text-xs text-gray-500 leading-relaxed mb-3" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${summary}</div>`;
@@ -180,10 +199,10 @@ function renderCards(groups, idPrefix) {
 <!-- Desktop tables (hidden on mobile) -->
 <div class="hidden md:block">
   <div id="view-date">
-    <%- renderTable(dateGroups, 'd') %>
+    <%- renderTable(dateGroups, 'd', 'date') %>
   </div>
   <div id="view-location" class="hidden">
-    <%- renderTable(locationGroups, 'l') %>
+    <%- renderTable(locationGroups, 'l', 'location') %>
   </div>
 </div>
 

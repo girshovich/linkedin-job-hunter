@@ -7,6 +7,15 @@ import { getDb, type SearchRunRow, type RunJobLogRow } from '../db';
 
 const router = Router();
 
+const VERDICT_PRIORITY: Record<string, number> = {
+  STRONG_MATCH: 0,
+  WEAK_MATCH: 1,
+  NO_MATCH: 2,
+  DUPLICATE: 3,
+  BLACKLISTED: 4,
+  FILTERED: 5,
+};
+
 function extractCountry(location: string | null): string {
   if (!location) return 'Remote / Unknown';
   const parts = location.split(',');
@@ -66,7 +75,15 @@ router.get('/', (req: Request, res: Response) => {
         if (b === 'Remote / Unknown') return -1;
         return a.localeCompare(b);
       })
-      .map(([country, jobs]) => ({ country, jobs }));
+      .map(([country, jobs]) => ({
+        country,
+        jobs: jobs.slice().sort((a, b) => {
+          const pa = VERDICT_PRIORITY[a.ai_verdict] ?? 99;
+          const pb = VERDICT_PRIORITY[b.ai_verdict] ?? 99;
+          if (pa !== pb) return pa - pb;
+          return (b.ai_score ?? -1) - (a.ai_score ?? -1);
+        }),
+      }));
 
     return { ...run, countryGroups, blacklistedCount, filteredCount };
   });
