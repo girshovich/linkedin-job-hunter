@@ -32,7 +32,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Login page is registered before the auth middleware so it doesn't require auth.
 // It also runs before the layout helper, so res.render('login') sends the page directly.
 
-const SESSION_TOKEN = crypto.randomBytes(32).toString('hex');
+const SESSION_TOKEN = config.dashboardPass
+  ? crypto.createHash('sha256').update('job-hunter-session-v1:' + config.dashboardPass).digest('hex')
+  : crypto.randomBytes(32).toString('hex');
 
 app.get('/login', (_req: Request, res: Response) => {
   if (!config.dashboardPass) { res.redirect('/'); return; }
