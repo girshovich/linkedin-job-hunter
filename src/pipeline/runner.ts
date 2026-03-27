@@ -13,24 +13,34 @@ import { scoreJobs, dedupAndSummarise, buildScoringSystemPrompt, type ScoredJob,
 import { sendDailyReport, type RunStats } from './emailReport';
 
 // Price per 1M tokens in USD — sorted longest key first so prefix matching is unambiguous
-const OPENAI_PRICING: Record<string, { input: number; output: number }> = {
-  'gpt-4o-mini':   { input: 0.15,  output: 0.60  },
-  'gpt-4o':        { input: 2.50,  output: 10.00 },
-  'gpt-4-turbo':   { input: 10.00, output: 30.00 },
-  'gpt-4':         { input: 30.00, output: 60.00 },
-  'o1-mini':       { input: 3.00,  output: 12.00 },
-  'o1':            { input: 15.00, output: 60.00 },
-  'o3-mini':       { input: 1.10,  output: 4.40  },
-  'gpt-3.5-turbo': { input: 0.50,  output: 1.50  },
+// cachedInput: prompt-cache read price (billed instead of input for cached tokens)
+const OPENAI_PRICING: Record<string, { input: number; cachedInput: number; output: number }> = {
+  'gpt-5.4-mini':  { input: 0.75,  cachedInput: 0.075, output: 4.50  },
+  'gpt-5.4-nano':  { input: 0.20,  cachedInput: 0.02,  output: 1.25  },
+  'gpt-5.4':       { input: 2.50,  cachedInput: 0.25,  output: 15.00 },
+  'gpt-5-mini':    { input: 0.25,  cachedInput: 0.025, output: 2.00  },
+  'gpt-4o-mini':   { input: 0.15,  cachedInput: 0.075, output: 0.60  },
+  'gpt-4o':        { input: 2.50,  cachedInput: 1.25,  output: 10.00 },
+  'gpt-4-turbo':   { input: 10.00, cachedInput: 10.00, output: 30.00 },
+  'gpt-4':         { input: 30.00, cachedInput: 30.00, output: 60.00 },
+  'o1-mini':       { input: 3.00,  cachedInput: 1.50,  output: 12.00 },
+  'o1':            { input: 15.00, cachedInput: 7.50,  output: 60.00 },
+  'o3-mini':       { input: 1.10,  cachedInput: 0.55,  output: 4.40  },
+  'gpt-3.5-turbo': { input: 0.50,  cachedInput: 0.25,  output: 1.50  },
 };
 
-function calcOpenAiCost(model: string, inputTokens: number, outputTokens: number): number | null {
+function calcOpenAiCost(model: string, inputTokens: number, cachedInputTokens: number, outputTokens: number): number | null {
   const key = Object.keys(OPENAI_PRICING)
     .sort((a, b) => b.length - a.length)
     .find((k) => model.startsWith(k));
   if (!key) return null;
   const p = OPENAI_PRICING[key];
-  return (inputTokens * p.input + outputTokens * p.output) / 1_000_000;
+  const billableInputTokens = inputTokens - cachedInputTokens;
+  return (
+    (billableInputTokens / 1_000_000) * p.input +
+    (cachedInputTokens  / 1_000_000) * p.cachedInput +
+    (outputTokens       / 1_000_000) * p.output
+  );
 }
 
 function matchesTitleFilter(title: string, filter: string): boolean {
@@ -115,6 +125,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
   let jobsNoMatch = 0;
   let jobsDuplicate = 0;
   let totalInputTokens = 0;
+  let totalCachedInputTokens = 0;
   let totalOutputTokens = 0;
   let totalApifyCostUsd = 0;
   let apifyRunCount = 0;
@@ -353,6 +364,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
         scoredJobs = scoreResult.jobs;
         jobsScored += scoredJobs.length;
         totalInputTokens += scoreResult.tokenUsage.inputTokens;
+        totalCachedInputTokens += scoreResult.tokenUsage.cachedInputTokens;
         totalOutputTokens += scoreResult.tokenUsage.outputTokens;
       }
 
@@ -394,6 +406,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
               isDuplicate = dedup.isDuplicate;
               duplicateOfId = dedup.duplicateOfId && dedup.duplicateOfId > 0 ? dedup.duplicateOfId : null;
               totalInputTokens += dedup.tokenUsage.inputTokens;
+              totalCachedInputTokens += dedup.tokenUsage.cachedInputTokens;
               totalOutputTokens += dedup.tokenUsage.outputTokens;
               if (isDuplicate) {
                 console.log(`[runner] Semantic duplicate: "${scored.job.title}" at "${scored.job.company}" → original ID ${duplicateOfId}`);
@@ -517,7 +530,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
     const durationMs = Date.now() - startedAt;
     const status = errors.length === 0 ? 'success' : 'partial_error';
 
-    const costOpenAiUsd = calcOpenAiCost(settings.ai_model, totalInputTokens, totalOutputTokens);
+    const costOpenAiUsd = calcOpenAiCost(settings.ai_model, totalInputTokens, totalCachedInputTokens, totalOutputTokens);
     const costApifyUsd = apifyRunCount > 0 ? totalApifyCostUsd : null;
 
     db.prepare(`

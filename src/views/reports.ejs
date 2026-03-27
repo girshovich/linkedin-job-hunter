@@ -127,22 +127,21 @@ function verdictChip(verdict, rejectionCategory) {
             <span class="font-medium text-gray-700"><%= run.scraping_provider === 'harvestapi' ? 'HarvestAPI' : run.scraping_provider.charAt(0).toUpperCase() + run.scraping_provider.slice(1) %></span>
           </div>
           <% } %>
-          <% if (run.cost_openai_usd != null) { %>
-          <div class="flex justify-between gap-6 text-gray-600">
-            <span>OpenAI</span>
-            <span class="font-medium text-gray-900">$<%= run.cost_openai_usd.toFixed(4) %></span>
+          <% const totalCost = (run.cost_openai_usd ?? 0) + (run.cost_apify_usd ?? 0); %>
+          <div class="flex justify-between gap-6 pb-1.5 mb-1.5 border-b border-gray-100">
+            <span class="font-medium text-gray-700">Total</span>
+            <span class="font-bold text-gray-900">$<%= totalCost.toFixed(4) %></span>
           </div>
-          <% } %>
           <% if (run.cost_apify_usd != null) { %>
-          <div class="flex justify-between gap-6 text-gray-600 mt-1.5">
-            <span>Apify</span>
+          <div class="flex justify-between gap-6 text-gray-600">
+            <span>Fetch</span>
             <span class="font-medium text-gray-900">$<%= run.cost_apify_usd.toFixed(4) %></span>
           </div>
           <% } %>
-          <% if (run.cost_openai_usd != null && run.cost_apify_usd != null) { %>
-          <div class="flex justify-between gap-6 mt-2 pt-2 border-t border-gray-100">
-            <span class="font-medium text-gray-700">Total</span>
-            <span class="font-bold text-gray-900">$<%= (run.cost_openai_usd + run.cost_apify_usd).toFixed(4) %></span>
+          <% if (run.cost_openai_usd != null) { %>
+          <div class="flex justify-between gap-6 text-gray-600 mt-1.5">
+            <span>AI</span>
+            <span class="font-medium text-gray-900">$<%= run.cost_openai_usd.toFixed(4) %></span>
           </div>
           <% } %>
         </div>

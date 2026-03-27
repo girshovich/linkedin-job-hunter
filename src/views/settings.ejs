@@ -412,7 +412,8 @@ Description: {description — up to 1,500 chars each}
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1.5">Model <span class="font-normal text-gray-400">(applies to all AI calls)</span></label>
           <select name="ai_model" class="w-full sm:w-72 rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500">
-            <option value="gpt-5-mini" <%= settings.ai_model === 'gpt-5-mini' ? 'selected' : '' %>>gpt-5-mini (fast, cost-efficient)</option>
+            <option value="gpt-5.4-nano" <%= settings.ai_model === 'gpt-5.4-nano' ? 'selected' : '' %>>gpt-5.4-nano (fastest, most cost-efficient)</option>
+            <option value="gpt-5.4-mini" <%= settings.ai_model === 'gpt-5.4-mini' ? 'selected' : '' %>>gpt-5.4-mini (fast, cost-efficient)</option>
             <option value="gpt-5.4" <%= settings.ai_model === 'gpt-5.4' ? 'selected' : '' %>>gpt-5.4 (highest accuracy)</option>
           </select>
         </div>

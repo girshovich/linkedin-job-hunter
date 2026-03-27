@@ -32,6 +32,7 @@ export interface DedupeAndSummaryResult {
 
 export interface TokenUsage {
   inputTokens: number;
+  cachedInputTokens: number;
   outputTokens: number;
 }
 
@@ -216,6 +217,7 @@ async function callScoringLlm(
     result: JSON.parse(text) as ScoringLlmOutput,
     usage: {
       inputTokens: response.usage?.input_tokens ?? 0,
+      cachedInputTokens: response.usage?.input_tokens_details?.cached_tokens ?? 0,
       outputTokens: response.usage?.output_tokens ?? 0,
     },
   };
@@ -229,6 +231,7 @@ export async function scoreJobs(
 ): Promise<{ jobs: ScoredJob[]; tokenUsage: TokenUsage }> {
   const results: ScoredJob[] = [];
   let totalInputTokens = 0;
+  let totalCachedInputTokens = 0;
   let totalOutputTokens = 0;
   let jobsDone = 0;
 
@@ -264,6 +267,7 @@ export async function scoreJobs(
     if (!callResult) continue;
 
     totalInputTokens += callResult.usage.inputTokens;
+    totalCachedInputTokens += callResult.usage.cachedInputTokens;
     totalOutputTokens += callResult.usage.outputTokens;
 
     const output = callResult.result;
@@ -283,7 +287,7 @@ export async function scoreJobs(
     });
   }
 
-  return { jobs: results, tokenUsage: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens } };
+  return { jobs: results, tokenUsage: { inputTokens: totalInputTokens, cachedInputTokens: totalCachedInputTokens, outputTokens: totalOutputTokens } };
 }
 
 // ── Call 2: Dedup only (strong matches with existing same-company+title in DB) ──
@@ -368,6 +372,7 @@ export async function dedupAndSummarise(
       duplicateOfId,
       tokenUsage: {
         inputTokens: response.usage?.input_tokens ?? 0,
+        cachedInputTokens: response.usage?.input_tokens_details?.cached_tokens ?? 0,
         outputTokens: response.usage?.output_tokens ?? 0,
       },
     };
@@ -376,6 +381,6 @@ export async function dedupAndSummarise(
       `[aiScorer] Dedup check failed for "${scoredJob.job.title}" at "${scoredJob.job.company}":`,
       (err as Error).message,
     );
-    return { isDuplicate: false, duplicateOfId: null, tokenUsage: { inputTokens: 0, outputTokens: 0 } };
+    return { isDuplicate: false, duplicateOfId: null, tokenUsage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 } };
   }
 }
