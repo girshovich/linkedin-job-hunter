@@ -83,7 +83,13 @@ function formatDate(iso) {
       </div>
 
       <h1 class="text-xl font-bold text-gray-900 mb-1"><%= job.title %></h1>
-      <p class="text-base text-gray-600 font-medium"><%= job.company %></p>
+      <p class="text-base text-gray-600 font-medium">
+        <button id="company-name-btn" onclick="openCompanyNotePopover(event)"
+                class="text-base text-gray-600 font-medium text-left"
+                style="text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px;background:none;border:none;padding:0;cursor:pointer;">
+          <%= job.company %>
+        </button>
+      </p>
 
       <div class="flex items-center gap-4 mt-3 flex-wrap text-sm text-gray-500">
         <% if (job.location) { %>
@@ -150,10 +156,10 @@ function formatDate(iso) {
   </div>
 </div>
 
-<!-- Notes -->
+<!-- Notes about the job -->
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
   <div class="flex items-center justify-between mb-3">
-    <h2 class="text-base font-semibold text-gray-900">Notes</h2>
+    <h2 class="text-base font-semibold text-gray-900">Notes about the job</h2>
     <button id="notes-save-btn" onclick="saveNotes()"
             class="text-xs font-medium text-blue-600 hover:text-blue-800 px-3 py-1 rounded-lg hover:bg-blue-50 transition-colors">
       Save
@@ -308,6 +314,18 @@ const _safeDesc = _isHtml
   <% } %>
 </div>
 
+<!-- Company note popover -->
+<div id="company-note-popover" class="hidden fixed z-50 bg-white rounded-xl shadow-xl border border-gray-200 p-3" style="width:280px;max-width:90vw;">
+  <div class="text-xs font-medium text-gray-500 mb-2">Company notes</div>
+  <textarea id="company-note-popover-area" rows="4" maxlength="5000" placeholder="Add notes about this company…"
+            class="w-full text-sm text-gray-700 border border-gray-200 rounded-lg p-2 resize-none focus:outline-none focus:border-blue-400"
+            onkeydown="if(event.key==='Escape'){event.stopPropagation();closeCompanyNotePopover();}"></textarea>
+  <div class="flex items-center justify-between mt-2">
+    <span id="company-note-popover-status" class="text-xs text-emerald-600 hidden">✓ Saved</span>
+    <button onclick="saveCompanyNotePopover()" class="text-xs bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700 transition-colors ml-auto">Save</button>
+  </div>
+</div>
+
 <!-- CV Selection Modal -->
 <div id="cv-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
   <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeCvModal()"></div>
@@ -349,6 +367,7 @@ const _safeDesc = _isHtml
 
 <script>
 const _jobId = <%= job.id %>;
+const _companyName = <%- JSON.stringify(job.company) %>;
 
 // Keyboard navigation: ← Previous, → Next
 document.addEventListener('keydown', function(e) {
@@ -428,6 +447,85 @@ async function runCvCompare() {
     errEl.classList.remove('hidden');
   } finally {
     label.textContent = 'Analyse';
+  }
+}
+
+let _companyPopoverOpen = false;
+let _currentCompanyNote = <%- JSON.stringify(locals.companyNote || '') %>;
+
+function closeCompanyNotePopover() {
+  // Persist whatever is in the textarea as the current note
+  const area = document.getElementById('company-note-popover-area');
+  if (area) _currentCompanyNote = area.value;
+  document.getElementById('company-note-popover').classList.add('hidden');
+  _companyPopoverOpen = false;
+}
+
+function openCompanyNotePopover(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  const pop = document.getElementById('company-note-popover');
+  if (_companyPopoverOpen) {
+    closeCompanyNotePopover();
+    return;
+  }
+  const area = document.getElementById('company-note-popover-area');
+  area.value = _currentCompanyNote;
+  document.getElementById('company-note-popover-status').classList.add('hidden');
+  pop.classList.remove('hidden');
+  _companyPopoverOpen = true;
+  const btn = event.currentTarget;
+  const rect = btn.getBoundingClientRect();
+  const popW = 280, popH = 190;
+  let left = rect.left;
+  if (left + popW > window.innerWidth - 8) left = window.innerWidth - popW - 8;
+  if (left < 8) left = 8;
+  let top = rect.bottom + 6;
+  if (top + popH > window.innerHeight - 8) top = rect.top - popH - 6;
+  if (top < 8) top = 8;
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+  setTimeout(() => area.focus(), 50);
+}
+
+document.addEventListener('click', function(e) {
+  if (!_companyPopoverOpen) return;
+  const pop = document.getElementById('company-note-popover');
+  const btn = document.getElementById('company-name-btn');
+  if (!pop.contains(e.target) && !btn.contains(e.target)) {
+    closeCompanyNotePopover();
+  }
+});
+
+async function saveCompanyNotePopover() {
+  const area = document.getElementById('company-note-popover-area');
+  const note = area.value;
+  const saveBtn = document.querySelector('#company-note-popover button');
+  const status = document.getElementById('company-note-popover-status');
+  saveBtn.textContent = 'Saving…';
+  saveBtn.disabled = true;
+  try {
+    const res = await fetch('/api/company-notes', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company: _companyName, note }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      _currentCompanyNote = note;
+      closeCompanyNotePopover();
+    } else {
+      status.textContent = 'Error saving';
+      status.className = 'text-xs text-red-500';
+      status.classList.remove('hidden');
+    }
+  } catch {
+    status.textContent = 'Error';
+    status.className = 'text-xs text-red-500';
+    status.classList.remove('hidden');
+  } finally {
+    saveBtn.textContent = 'Save';
+    saveBtn.disabled = false;
   }
 }
 

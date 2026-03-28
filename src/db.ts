@@ -771,6 +771,14 @@ function initSchema(db: Database): void {
       UNIQUE (profile_id, company_name)
     );
 
+    CREATE TABLE IF NOT EXISTS company_notes (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      profile_id INTEGER NOT NULL DEFAULT 1,
+      company    TEXT    NOT NULL,
+      note       TEXT    NOT NULL DEFAULT '',
+      updated_at TEXT    NOT NULL,
+      UNIQUE (profile_id, company)
+    );
 
     CREATE TABLE IF NOT EXISTS cvs (
       id           INTEGER PRIMARY KEY AUTOINCREMENT,

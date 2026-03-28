@@ -656,6 +656,30 @@ router.patch('/jobs/:id/applied', (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
+// GET /api/company-notes?company=... — fetch note for a company
+router.get('/company-notes', (req: Request, res: Response) => {
+  const company = String(req.query.company || '').trim();
+  if (!company) { res.json({ note: '' }); return; }
+  const db = getDb();
+  const row = db.prepare('SELECT note FROM company_notes WHERE profile_id = ? AND company = ?').get(req.profile.id, company) as { note: string } | undefined;
+  res.json({ note: row?.note || '' });
+});
+
+// PATCH /api/company-notes — upsert note for a company
+router.patch('/company-notes', (req: Request, res: Response) => {
+  const b = req.body as Record<string, unknown>;
+  const company = String(b.company || '').trim();
+  const note = String(b.note ?? '').trim().slice(0, 5000);
+  if (!company) { res.status(400).json({ success: false, error: 'Company name required.' }); return; }
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO company_notes (profile_id, company, note, updated_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(profile_id, company) DO UPDATE SET note = excluded.note, updated_at = excluded.updated_at
+  `).run(req.profile.id, company, note, new Date().toISOString());
+  res.json({ success: true });
+});
+
 // PATCH /api/jobs/:id/notes — save user notes
 router.patch('/jobs/:id/notes', (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);

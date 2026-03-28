@@ -241,8 +241,10 @@ router.get('/job/:id', (req: Request, res: Response) => {
 
   const settings = db.prepare('SELECT * FROM settings WHERE profile_id = ?').get(profileId) as SettingsRow | undefined;
   const cvs = db.prepare('SELECT id, filename, mime_type, file_size, uploaded_at FROM cvs WHERE profile_id = ? ORDER BY uploaded_at DESC').all(profileId) as Omit<CvRow, 'content_b64'>[];
+  const companyNoteRow = db.prepare('SELECT note FROM company_notes WHERE profile_id = ? AND company = ?').get(profileId, job.company) as { note: string } | undefined;
+  const companyNote = companyNoteRow?.note || '';
 
-  res.render('job-detail', { job, original, duplicatesOfThis, title: job.title, backUrl, backLabel, prevId, nextId, from, cvs, settings });
+  res.render('job-detail', { job, original, duplicatesOfThis, title: job.title, backUrl, backLabel, prevId, nextId, from, cvs, settings, companyNote });
 });
 
 export { router as dashboardRouter };

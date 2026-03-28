@@ -110,7 +110,11 @@ function renderTable(groups, idPrefix, hideCol) {
     group.jobs.forEach(job => {
       const jobVerdict = job.is_duplicate ? 'DUPLICATE' : job.ai_verdict;
       html += `<tr class="job-row-${idPrefix}-${gi} border-t border-gray-100 hover:bg-blue-50/30 transition-colors cursor-pointer" onclick="jobRowClick(event, '/job/${job.id}?from=jobs')">`;
-      html += `<td class="pl-5 pr-3 py-3.5 align-top" style="overflow:hidden;"><span class="text-sm font-semibold text-gray-600 leading-snug" style="display:block;word-break:break-word;">${escHtml(job.company)}</span></td>`;
+      const _cnTable = locals.companyNotes && locals.companyNotes[job.company];
+      const _companyHtmlTable = _cnTable
+        ? `<button data-note="${escHtml(_cnTable)}" data-company="${escHtml(job.company)}" onclick="openCompanyNotePopover(event,this)" class="text-sm font-semibold text-gray-600 leading-snug text-left" style="display:block;word-break:break-word;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px;background:none;border:none;padding:0;cursor:pointer;">${escHtml(job.company)}</button>`
+        : `<span class="text-sm font-semibold text-gray-600 leading-snug" style="display:block;word-break:break-word;">${escHtml(job.company)}</span>`;
+      html += `<td class="pl-5 pr-3 py-3.5 align-top" style="overflow:hidden;">${_companyHtmlTable}</td>`;
       html += `<td class="px-3 py-3.5 align-top" style="overflow:hidden;"><span class="text-sm font-semibold text-gray-900 leading-snug" style="display:block;">${escHtml(job.title)}</span></td>`;
       const summary = job.ai_summary ? escHtml(stripMd(job.ai_summary)) : '<span class="text-gray-300 italic">—</span>';
       html += `<td class="px-3 py-3.5 align-top text-xs leading-relaxed text-gray-600" style="overflow:hidden;"><span style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">${summary}</span></td>`;
@@ -172,7 +176,11 @@ function renderCards(groups, idPrefix) {
       html += `<div class="job-card-m-${idPrefix}-${gi} bg-white rounded-xl border border-gray-200 shadow-sm p-4 cursor-pointer" onclick="jobRowClick(event, '/job/${job.id}?from=jobs')">`;
       const cardVerdict = job.is_duplicate ? 'DUPLICATE' : job.ai_verdict;
       html += `<div class="flex items-start justify-between gap-2 mb-2">`;
-      html += `<div class="flex-1 min-w-0"><div class="font-semibold text-gray-900 text-sm leading-snug">${escHtml(job.title)}</div><div class="text-xs text-gray-500 mt-0.5">${escHtml(job.company)}</div></div>`;
+      const _cnCard = locals.companyNotes && locals.companyNotes[job.company];
+      const _companyHtmlCard = _cnCard
+        ? `<button data-note="${escHtml(_cnCard)}" data-company="${escHtml(job.company)}" onclick="openCompanyNotePopover(event,this)" class="text-xs text-gray-500 mt-0.5 text-left" style="text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;background:none;border:none;padding:0;cursor:pointer;">${escHtml(job.company)}</button>`
+        : `<div class="text-xs text-gray-500 mt-0.5">${escHtml(job.company)}</div>`;
+      html += `<div class="flex-1 min-w-0"><div class="font-semibold text-gray-900 text-sm leading-snug">${escHtml(job.title)}</div>${_companyHtmlCard}</div>`;
       html += `<div class="flex flex-col items-end gap-1 flex-shrink-0"><span class="inline-block font-bold text-xs score-badge ${scoreColor} px-2 py-0.5 rounded">${job.ai_score}%</span><button class="verdict-btn" data-job-id="${job.id}" data-verdict="${cardVerdict}" data-chip-style="compact">${verdictChip(cardVerdict)}</button></div>`;
       html += `</div>`;
       if (summary) {
@@ -216,6 +224,18 @@ function renderCards(groups, idPrefix) {
   </div>
 </div>
 
+<!-- Company note popover (editable) -->
+<div id="company-note-popover" class="hidden fixed z-50 bg-white rounded-xl shadow-xl border border-gray-200 p-3" style="width:280px;max-width:90vw;">
+  <div class="text-xs font-medium text-gray-500 mb-2">Company notes</div>
+  <textarea id="company-note-popover-area" rows="4" maxlength="5000" placeholder="Add notes about this company…"
+            class="w-full text-sm text-gray-700 border border-gray-200 rounded-lg p-2 resize-none focus:outline-none focus:border-blue-400"
+            onkeydown="if(event.key==='Escape'){event.stopPropagation();closeCompanyNotePopover();}"></textarea>
+  <div class="flex items-center justify-between mt-2">
+    <span id="company-note-popover-status" class="text-xs text-emerald-600 hidden">✓ Saved</span>
+    <button onclick="saveCompanyNotePopover()" class="text-xs bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700 transition-colors ml-auto">Save</button>
+  </div>
+</div>
+
 <!-- Note popover (shared, one instance) -->
 <div id="note-popover" class="hidden fixed z-50 bg-white rounded-xl shadow-xl border border-gray-200 p-3" style="width:260px;">
   <textarea id="note-text" rows="4" maxlength="5000" placeholder="Add a note…"
@@ -231,6 +251,81 @@ function renderCards(groups, idPrefix) {
 </div>
 
 <script>
+let _companyNoteBtn = null;
+
+function closeCompanyNotePopover() {
+  document.getElementById('company-note-popover').classList.add('hidden');
+  _companyNoteBtn = null;
+}
+
+function openCompanyNotePopover(event, btn) {
+  event.stopPropagation();
+  const pop = document.getElementById('company-note-popover');
+  if (_companyNoteBtn === btn) {
+    closeCompanyNotePopover();
+    return;
+  }
+  _companyNoteBtn = btn;
+  const area = document.getElementById('company-note-popover-area');
+  area.value = btn.dataset.note || '';
+  document.getElementById('company-note-popover-status').classList.add('hidden');
+  pop.classList.remove('hidden');
+  const rect = btn.getBoundingClientRect();
+  const popW = 280, popH = 190;
+  // Anchor below the button, left-aligned to it
+  let left = rect.left;
+  if (left + popW > window.innerWidth - 8) left = window.innerWidth - popW - 8;
+  if (left < 8) left = 8;
+  let top = rect.bottom + 6;
+  // Flip above if it would overflow the bottom
+  if (top + popH > window.innerHeight - 8) top = rect.top - popH - 6;
+  if (top < 8) top = 8;
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+  setTimeout(() => area.focus(), 50);
+}
+
+async function saveCompanyNotePopover() {
+  const area = document.getElementById('company-note-popover-area');
+  const note = area.value;
+  const company = _companyNoteBtn ? _companyNoteBtn.dataset.company : '';
+  if (!company) return;
+  const saveBtn = document.querySelector('#company-note-popover button');
+  const status = document.getElementById('company-note-popover-status');
+  saveBtn.textContent = 'Saving…';
+  saveBtn.disabled = true;
+  try {
+    const res = await fetch('/api/company-notes', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company, note }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      if (_companyNoteBtn) _companyNoteBtn.dataset.note = note;
+      closeCompanyNotePopover();
+    } else {
+      status.textContent = 'Error saving';
+      status.className = 'text-xs text-red-500';
+      status.classList.remove('hidden');
+    }
+  } catch {
+    status.textContent = 'Error';
+    status.className = 'text-xs text-red-500';
+    status.classList.remove('hidden');
+  } finally {
+    saveBtn.textContent = 'Save';
+    saveBtn.disabled = false;
+  }
+}
+
+document.addEventListener('click', function(e) {
+  const pop = document.getElementById('company-note-popover');
+  if (!pop.classList.contains('hidden') && !pop.contains(e.target) && !_companyNoteBtn?.contains(e.target)) {
+    closeCompanyNotePopover();
+  }
+});
+
 let _noteJobId = null, _noteBtn = null;
 
 function openNotePopover(event, btn) {

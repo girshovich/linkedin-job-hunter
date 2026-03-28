@@ -154,7 +154,11 @@ router.get('/', (req: Request, res: Response) => {
     `SELECT COUNT(*) as c FROM jobs WHERE profile_id = ? AND ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0`,
   ).get(profileId) as { c: number }).c;
 
-  res.render('jobs', { locationGroups, dateGroups, tabGroups, activeGroupId, activeOthers, orphanCount, total: totalAll, title: 'Jobs Match' });
+  const companyNoteRows = db.prepare('SELECT company, note FROM company_notes WHERE profile_id = ?').all(profileId) as Array<{ company: string; note: string }>;
+  const companyNotes: Record<string, string> = {};
+  for (const r of companyNoteRows) { if (r.note) companyNotes[r.company] = r.note; }
+
+  res.render('jobs', { locationGroups, dateGroups, tabGroups, activeGroupId, activeOthers, orphanCount, total: totalAll, title: 'Jobs Match', companyNotes });
 });
 
 export { router as jobsRouter };
