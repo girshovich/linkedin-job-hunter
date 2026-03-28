@@ -166,10 +166,11 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
     const activeGroups = groups.filter((g) =>
       groupIds && groupIds.length > 0 ? groupIds.includes(g.id) : g.is_active
     );
-    const totalSections = activeGroups.length + 2; // Starting + one per active group + AI Scoring
+    // Two progress slots per group (Fetch + AI Score) plus the initial Starting slot.
+    // This ensures progress always moves forward even when groups are processed sequentially.
+    const totalSections = activeGroups.length * 2 + 1;
     const sw = 100 / totalSections;
     let activeGroupIdx = 0;
-    let hasScoringStageSet = false;
     setStage(profileId, 'Starting', 0, totalSections);
 
     // Insert search_runs row NOW to get a stable run_id for job logs
@@ -244,7 +245,8 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
       );
 
       // 1. Fetch
-      setStage(profileId, 'Fetching Jobs', Math.round((1 + activeGroupIdx) * sw), totalSections);
+      const roleLabel = group.group_name ? group.group_name : `Role ${activeGroupIdx + 1}`;
+      setStage(profileId, `${roleLabel}: Fetching`, Math.round((activeGroupIdx * 2 + 1) * sw), totalSections);
       let allFetched: JobPosting[] = [];
       try {
         const fetchResult = await fetchJobs({
@@ -356,10 +358,7 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
 
       let scoredJobs: ScoredJob[] = [];
       if (newJobs.length > 0) {
-        if (!hasScoringStageSet) {
-          setStage(profileId, 'AI Scoring', Math.round((totalSections - 1) * sw), totalSections);
-          hasScoringStageSet = true;
-        }
+        setStage(profileId, `${roleLabel}: AI Scoring`, Math.round((activeGroupIdx * 2 + 2) * sw), totalSections);
         const scoreResult = await scoreJobs(newJobs, scoringSettings, openAiKey);
         scoredJobs = scoreResult.jobs;
         jobsScored += scoredJobs.length;

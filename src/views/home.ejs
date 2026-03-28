@@ -148,10 +148,7 @@ function verdictChip(verdict) {
       </svg>
       <span id="home-run-status-text">Starting</span>
     </div>
-    <div class="relative mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-      <div id="home-run-bar" class="h-full bg-emerald-500 transition-all duration-700" style="width:0%"></div>
-      <div id="home-run-dividers" class="absolute inset-0 pointer-events-none"></div>
-    </div>
+    <div id="home-run-segments" class="flex gap-1 mt-2"></div>
   </div>
   <div id="home-run-result" class="hidden mt-4 text-sm"></div>
 </div>
@@ -325,24 +322,40 @@ async function homeRun(btn) {
   openRunModal();
 }
 
-let _dividerSections = 0;
-function updateDividers(totalSections) {
-  if (totalSections === _dividerSections) return;
-  _dividerSections = totalSections;
-  const container = document.getElementById('home-run-dividers');
-  container.innerHTML = '';
-  for (let i = 1; i < totalSections; i++) {
-    const line = document.createElement('div');
-    line.className = 'absolute top-0 bottom-0 w-px bg-white/60';
-    line.style.left = (i / totalSections * 100) + '%';
-    container.appendChild(line);
+let _segTotal = 0;
+function updateSegments(totalSections, pct) {
+  const container = document.getElementById('home-run-segments');
+  if (!totalSections || totalSections < 1) {
+    if (container.children.length !== 1 || !container.children[0].classList.contains('animate-pulse')) {
+      container.innerHTML = '<div class="flex-1 h-2 rounded-full bg-gray-200 animate-pulse"></div>';
+    }
+    return;
+  }
+  if (container.children.length !== totalSections) {
+    _segTotal = totalSections;
+    container.innerHTML = '';
+    for (let i = 0; i < totalSections; i++) {
+      const seg = document.createElement('div');
+      seg.className = 'flex-1 h-2 rounded-full bg-gray-200';
+      container.appendChild(seg);
+    }
+  }
+  const filled = Math.round((pct / 100) * totalSections);
+  for (let i = 0; i < totalSections; i++) {
+    const seg = container.children[i];
+    if (i < filled) {
+      seg.className = 'flex-1 h-2 rounded-full bg-emerald-500 transition-colors duration-500';
+    } else if (i === filled && filled < totalSections) {
+      seg.className = 'flex-1 h-2 rounded-full bg-emerald-200 animate-pulse';
+    } else {
+      seg.className = 'flex-1 h-2 rounded-full bg-gray-200 transition-colors duration-500';
+    }
   }
 }
 
 function startPolling(btn) {
   const label = document.getElementById('home-run-label');
   const progress = document.getElementById('home-run-progress');
-  const bar = document.getElementById('home-run-bar');
   const statusText = document.getElementById('home-run-status-text');
   if (homeRunPoller) clearInterval(homeRunPoller);
   homeRunPoller = setInterval(async () => {
@@ -350,14 +363,12 @@ function startPolling(btn) {
       const res = await fetch('/api/status');
       const data = await res.json();
       if (data.stage) {
-        bar.style.width = data.stage.pct + '%';
+        updateSegments(data.stage.totalSections || 0, data.stage.pct);
         statusText.textContent = data.stage.text;
-        if (data.stage.totalSections) updateDividers(data.stage.totalSections);
       }
       if (!data.isRunning && data.lastRun) {
         clearInterval(homeRunPoller);
-        bar.style.transition = 'width 0.4s ease';
-        bar.style.width = '100%';
+        updateSegments(_segTotal, 100);
         const r = data.lastRun;
         const ok = r.status === 'success' || r.status === 'partial_error';
         const tookSec = r.duration_ms ? ` (${(r.duration_ms / 1000).toFixed(0)}s)` : '';
@@ -376,7 +387,6 @@ function startHomeProgress(btn) {
   const label = document.getElementById('home-run-label');
   const progress = document.getElementById('home-run-progress');
   const result = document.getElementById('home-run-result');
-  const bar = document.getElementById('home-run-bar');
   const statusText = document.getElementById('home-run-status-text');
 
   btn.disabled = true;
@@ -384,7 +394,7 @@ function startHomeProgress(btn) {
   label.textContent = 'Running…';
   progress.classList.remove('hidden');
   result.classList.add('hidden');
-  bar.style.width = '0%';
+  updateSegments(0, 0);
   statusText.textContent = 'Starting';
   startPolling(btn);
 }
@@ -467,9 +477,8 @@ function syncRunState(data) {
   document.getElementById('home-run-label').textContent = 'Running…';
   document.getElementById('home-run-progress').classList.remove('hidden');
   if (data.stage) {
-    document.getElementById('home-run-bar').style.width = data.stage.pct + '%';
+    updateSegments(data.stage.totalSections || 0, data.stage.pct);
     document.getElementById('home-run-status-text').textContent = data.stage.text;
-    if (data.stage.totalSections) updateDividers(data.stage.totalSections);
   }
   startPolling(btn);
 }
