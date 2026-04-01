@@ -962,9 +962,9 @@
       dd.classList.remove('hidden');
       const rect = btn.getBoundingClientRect();
       const ddW = 160;
-      let left = rect.left + window.scrollX;
+      let left = rect.left;
       if (left + ddW > window.innerWidth - 8) left = window.innerWidth - ddW - 8;
-      dd.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+      dd.style.top  = (rect.bottom + 4) + 'px';
       dd.style.left = left + 'px';
     }
 
