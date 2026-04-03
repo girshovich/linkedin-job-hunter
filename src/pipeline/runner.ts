@@ -9,7 +9,7 @@ import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRo
 import { config } from '../config';
 import { fetchJobs, type JobPosting, type DateRange } from './fetcher';
 import { filterNewJobs } from './deduplicator';
-import { scoreJobs, dedupAndSummarise, buildScoringSystemPrompt, type ScoredJob, type ExistingJob } from './aiScorer';
+import { scoreJobs, dedupAndSummarise, preFilterDuplicateCandidates, buildScoringSystemPrompt, type ScoredJob, type ExistingJob } from './aiScorer';
 import { sendDailyReport, type RunStats } from './emailReport';
 
 // Price per 1M tokens in USD — sorted longest key first so prefix matching is unambiguous
@@ -389,29 +389,49 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
             isDuplicate = true;
             console.log(`[runner] In-run duplicate: "${scored.job.title}" at "${scored.job.company}" (different LinkedIn ID, same posting)`);
           } else {
-            // Combine in-run accepted STRONG_MATCHes (not yet in DB) with DB entries.
+            // Stage 1: gather all same-company saved jobs (any verdict, no title filter)
             const inRunEntries = strongMatchesInRun.get(companyKey) ?? [];
-            const dbEntries = db.prepare(`
+            // Assign temporary negative IDs to in-run entries (not yet in DB)
+            const inRunWithIds: ExistingJob[] = inRunEntries.map((e, i) => ({ ...e, id: -(i + 1) }));
+            const dbCandidates = db.prepare(`
               SELECT id, title, description FROM jobs
-              WHERE lower(company) = lower(?) AND lower(title) = lower(?)
-                AND is_duplicate = 0 AND ai_verdict = 'STRONG_MATCH'
-              ORDER BY fetched_at DESC LIMIT 5
-            `).all(scored.job.company, scored.job.title) as ExistingJob[];
-            const existingJobs = [...inRunEntries, ...dbEntries];
+              WHERE lower(company) = lower(?) AND is_duplicate = 0
+              ORDER BY fetched_at DESC
+            `).all(scored.job.company) as ExistingJob[];
+            const allCandidates: ExistingJob[] = [...inRunWithIds, ...dbCandidates];
 
-            if (existingJobs.length > 0) {
-              // Call 2: dedup check only — summary was already generated in Call 1
-              const dedup = await dedupAndSummarise(scored, existingJobs, settings, openAiKey);
-              isDuplicate = dedup.isDuplicate;
-              duplicateOfId = dedup.duplicateOfId && dedup.duplicateOfId > 0 ? dedup.duplicateOfId : null;
-              totalInputTokens += dedup.tokenUsage.inputTokens;
-              totalCachedInputTokens += dedup.tokenUsage.cachedInputTokens;
-              totalOutputTokens += dedup.tokenUsage.outputTokens;
-              if (isDuplicate) {
-                console.log(`[runner] Semantic duplicate: "${scored.job.title}" at "${scored.job.company}" → original ID ${duplicateOfId}`);
+            if (allCandidates.length > 0) {
+              // Stage 2: cheap titles-only pre-filter → returns plausible duplicate IDs
+              const filteredIds = await preFilterDuplicateCandidates(
+                scored.job.title,
+                allCandidates.map((c) => ({ id: c.id, title: c.title })),
+                settings.ai_model,
+                openAiKey,
+              );
+
+              if (filteredIds.length > 0) {
+                // Resolve IDs back to full entries, cap at 5
+                const filteredSet = new Set(filteredIds);
+                const dedupCandidates = allCandidates
+                  .filter((c) => filteredSet.has(c.id))
+                  .slice(0, 5);
+
+                if (dedupCandidates.length > 0) {
+                  // Stage 3: full dedup with descriptions
+                  const dedup = await dedupAndSummarise(scored, dedupCandidates, settings, openAiKey);
+                  isDuplicate = dedup.isDuplicate;
+                  duplicateOfId = dedup.duplicateOfId && dedup.duplicateOfId > 0 ? dedup.duplicateOfId : null;
+                  totalInputTokens += dedup.tokenUsage.inputTokens;
+                  totalCachedInputTokens += dedup.tokenUsage.cachedInputTokens;
+                  totalOutputTokens += dedup.tokenUsage.outputTokens;
+                  if (isDuplicate) {
+                    console.log(`[runner] Semantic duplicate: "${scored.job.title}" at "${scored.job.company}" → original ID ${duplicateOfId}`);
+                  }
+                }
               }
+              // filteredIds empty → pre-filter found no plausible duplicates; skip full dedup
             }
-            // existingJobs.length === 0 → not a duplicate; skip Call 2 entirely
+            // allCandidates empty → first job from this company; skip both stages
 
             if (!isDuplicate) {
               seenStrongInRun.add(runKey);

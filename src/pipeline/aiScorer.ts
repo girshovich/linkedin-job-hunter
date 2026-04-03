@@ -324,6 +324,72 @@ ${cleanDesc.substring(0, descLen)}
   return msg;
 }
 
+// ── Pre-filter: titles-only candidate shortlist ───────────────────────────────
+
+interface PreFilterLlmOutput {
+  candidate_ids: number[];
+}
+
+/**
+ * Cheap titles-only LLM call: given the new job title and a list of same-company
+ * job titles, returns the IDs of any that could plausibly be the same role.
+ * Returns [] without calling the API when candidates is empty.
+ */
+export async function preFilterDuplicateCandidates(
+  newTitle: string,
+  candidates: Array<{ id: number; title: string }>,
+  model: string,
+  openAiKey: string,
+): Promise<number[]> {
+  if (candidates.length === 0) return [];
+
+  const client = new OpenAI({ apiKey: openAiKey });
+
+  const systemPrompt =
+    'You are a job deduplication pre-filter. Given a new job title and a list of existing job titles from the same company, return the IDs of any existing jobs that could plausibly be the same role — same seniority, same domain, same scope. Be liberal: include anything that might be a duplicate. Return only the IDs.';
+
+  const userMessage =
+    `New job title: "${newTitle}"\n\nExisting jobs at same company:\n` +
+    candidates.map((c) => `ID ${c.id}: ${c.title}`).join('\n');
+
+  try {
+    const response = await client.responses.create({
+      model,
+      input: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage },
+      ],
+      temperature: 0.1,
+      max_output_tokens: 150,
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'pre_filter',
+          strict: true,
+          schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              candidate_ids: { type: 'array', items: { type: 'integer' } },
+            },
+            required: ['candidate_ids'],
+          },
+        },
+      },
+    });
+
+    const text = response.output_text;
+    if (!text) return [];
+    const output = JSON.parse(text) as PreFilterLlmOutput;
+    return output.candidate_ids ?? [];
+  } catch (err) {
+    console.error('[aiScorer] Pre-filter call failed:', (err as Error).message);
+    return [];
+  }
+}
+
+// ── Call 2: Dedup only ────────────────────────────────────────────────────────
+
 export async function dedupAndSummarise(
   scoredJob: ScoredJob,
   existingJobs: ExistingJob[],

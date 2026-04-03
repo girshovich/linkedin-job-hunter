@@ -149,10 +149,13 @@ router.post('/test/openai', async (req: Request, res: Response) => {
     return;
   }
   try {
+    const db = getDb();
+    const settings = db.prepare('SELECT ai_model FROM settings WHERE profile_id = ?').get(req.profile.id) as { ai_model: string } | undefined;
+    const model = settings?.ai_model?.trim() || 'gpt-4o-mini';
     const OpenAI = (await import('openai')).default;
     const client = new OpenAI({ apiKey: key });
     await client.responses.create({
-      model: 'gpt-4o-mini',
+      model,
       input: [{ role: 'user', content: 'Say ok' }],
       max_output_tokens: 16,
     });
