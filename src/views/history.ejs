@@ -29,6 +29,7 @@ function qs(overrides) {
   const params = {
     verdict: filters.verdict,
     company: filters.company,
+    country: filters.country,
     score_min: filters.scoreMin,
     score_max: filters.scoreMax,
     date_from: filters.dateFrom,
@@ -77,6 +78,18 @@ function qs(overrides) {
         </option>
         <% }); %>
         <option value="null" <%= filters.groupId === null ? 'selected' : '' %>>Ungrouped</option>
+      </select>
+    </div>
+    <% } %>
+
+    <% if (countries && countries.length > 0) { %>
+    <div class="min-w-[140px]">
+      <label class="block text-xs font-medium text-gray-600 mb-1">Country</label>
+      <select name="country" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+        <option value="">All countries</option>
+        <% countries.forEach(c => { %>
+        <option value="<%= c %>" <%= filters.country === c ? 'selected' : '' %>><%= c %></option>
+        <% }); %>
       </select>
     </div>
     <% } %>

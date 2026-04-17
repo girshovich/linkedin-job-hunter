@@ -644,6 +644,15 @@ function runMigrations(db: Database): void {
     console.warn('[db] Migration vCV (cv_assessment) failed (non-fatal):', (err as Error).message);
   }
 
+  // v24: composite covering index for strong-match page + job-detail prev/next queries
+  try {
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_jobs_match_fetch
+             ON jobs(profile_id, ai_verdict, is_duplicate, fetched_at, ai_score, id)`);
+    console.log('[db] Migration v24: idx_jobs_match_fetch created');
+  } catch (err) {
+    console.warn('[db] Migration v24 (idx_jobs_match_fetch) failed (non-fatal):', (err as Error).message);
+  }
+
   // v8: seed default search group from settings row if groups table is empty
   try {
     const groupCount = (

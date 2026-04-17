@@ -113,6 +113,7 @@ router.get('/history', (req: Request, res: Response) => {
   // Filters
   const verdict = String(req.query.verdict || '');
   const company = String(req.query.company || '');
+  const country = String(req.query.country || '');
   const scoreMin = req.query.score_min !== undefined && req.query.score_min !== ''
     ? parseInt(String(req.query.score_min), 10) : null;
   const scoreMax = req.query.score_max !== undefined && req.query.score_max !== ''
@@ -141,6 +142,11 @@ router.get('/history', (req: Request, res: Response) => {
   if (company) {
     conditions.push('j.company LIKE ?');
     params.push(`%${company}%`);
+  }
+  if (country) {
+    // Match jobs where the last comma-segment of location equals the chosen country
+    conditions.push('(j.location LIKE ? OR j.location = ?)');
+    params.push(`%, ${country}`, country);
   }
   if (scoreMin !== null) { conditions.push('j.ai_score >= ?'); params.push(scoreMin); }
   if (scoreMax !== null) { conditions.push('j.ai_score <= ?'); params.push(scoreMax); }
@@ -172,13 +178,25 @@ router.get('/history', (req: Request, res: Response) => {
   const groups = db.prepare('SELECT id, group_name FROM search_groups WHERE profile_id = ? ORDER BY id ASC').all(profileId) as Pick<SearchGroupRow, 'id' | 'group_name'>[];
   const histSettings = db.prepare('SELECT timezone FROM settings WHERE profile_id = ?').get(profileId) as Pick<SettingsRow, 'timezone'> | undefined;
 
+  // Distinct countries for dropdown: last comma-segment of location
+  const locationRows = db.prepare(
+    `SELECT DISTINCT location FROM jobs WHERE profile_id = ? AND location IS NOT NULL AND location != '' ORDER BY location ASC`,
+  ).all(profileId) as Array<{ location: string }>;
+  const countrySet = new Set<string>();
+  for (const row of locationRows) {
+    const parts = row.location.split(',').map((s: string) => s.trim()).filter(Boolean);
+    if (parts.length > 0) countrySet.add(parts[parts.length - 1]);
+  }
+  const countries = Array.from(countrySet).sort();
+
   res.render('history', {
     jobs,
     page,
     totalPages,
     total,
     groups,
-    filters: { verdict, company, scoreMin, scoreMax, dateFrom, dateTo, groupId },
+    countries,
+    filters: { verdict, company, country, scoreMin, scoreMax, dateFrom, dateTo, groupId },
     timezone: histSettings?.timezone || 'UTC',
     title: 'Jobs All',
   });
@@ -216,14 +234,34 @@ router.get('/job/:id', (req: Request, res: Response) => {
   let prevId: number | null = null;
   let nextId: number | null = null;
   if (from === 'jobs') {
-    const allIds = db.prepare(`
+    // Sort order: fetched_at DESC, ai_score DESC, id DESC (matches jobs page)
+    // prev = item that appears above current = "bigger" in sort terms
+    const prevRow = db.prepare(`
       SELECT id FROM jobs
       WHERE profile_id = ? AND ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0
-      ORDER BY DATE(fetched_at) DESC, ai_score DESC
-    `).all(profileId) as Array<{ id: number }>;
-    const idx = allIds.findIndex((r) => r.id === id);
-    if (idx > 0) prevId = allIds[idx - 1].id;
-    if (idx >= 0 && idx < allIds.length - 1) nextId = allIds[idx + 1].id;
+        AND (fetched_at > ?
+          OR (fetched_at = ? AND ai_score > ?)
+          OR (fetched_at = ? AND ai_score = ? AND id > ?))
+      ORDER BY fetched_at ASC, ai_score ASC, id ASC LIMIT 1
+    `).get(profileId,
+        job.fetched_at,
+        job.fetched_at, job.ai_score,
+        job.fetched_at, job.ai_score, id) as { id: number } | undefined;
+    prevId = prevRow?.id ?? null;
+
+    // next = item that appears below current = "smaller" in sort terms
+    const nextRow = db.prepare(`
+      SELECT id FROM jobs
+      WHERE profile_id = ? AND ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0
+        AND (fetched_at < ?
+          OR (fetched_at = ? AND ai_score < ?)
+          OR (fetched_at = ? AND ai_score = ? AND id < ?))
+      ORDER BY fetched_at DESC, ai_score DESC, id DESC LIMIT 1
+    `).get(profileId,
+        job.fetched_at,
+        job.fetched_at, job.ai_score,
+        job.fetched_at, job.ai_score, id) as { id: number } | undefined;
+    nextId = nextRow?.id ?? null;
   } else if (from === 'home') {
     const day = job.fetched_at ? String(job.fetched_at).slice(0, 10) : null;
     if (day) {

@@ -6,6 +6,7 @@
  */
 
 import { getDb, type SettingsRow, type SearchGroupRow, type BlacklistedCompanyRow } from '../db';
+import { invalidateJobsDatesCache } from '../routes/jobs';
 import { config } from '../config';
 import { fetchJobs, type JobPosting, type DateRange } from './fetcher';
 import { filterNewJobs } from './deduplicator';
@@ -609,5 +610,6 @@ export async function runPipeline(trigger: 'scheduled' | 'manual' = 'scheduled',
   } finally {
     isRunningMap.set(profileId, false);
     runStageMap.delete(profileId);
+    invalidateJobsDatesCache(profileId);
   }
 }

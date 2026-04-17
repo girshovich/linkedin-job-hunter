@@ -34,12 +34,6 @@ function verdictChip(verdict) {
       All strong matches — <span class="font-medium text-gray-700"><%= total %></span> total
     </p>
   </div>
-  <div class="inline-flex rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden text-xs sm:text-sm">
-    <button id="btn-date" onclick="setGrouping('date')"
-            class="px-2.5 py-1.5 sm:px-4 sm:py-2 font-medium text-gray-500 transition-all">Date</button>
-    <button id="btn-location" onclick="setGrouping('location')"
-            class="px-2.5 py-1.5 sm:px-4 sm:py-2 font-medium text-gray-500 border-l border-gray-200 transition-all">Location</button>
-  </div>
 </div>
 
 <!-- Group tabs -->
@@ -67,7 +61,7 @@ function verdictChip(verdict) {
 </div>
 <% } %>
 
-<% if (locationGroups.length === 0) { %>
+<% if (total === 0) { %>
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-12 text-center">
   <svg class="w-10 h-10 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
@@ -204,25 +198,50 @@ function renderCards(groups, idPrefix) {
 }
 %>
 
-<!-- Desktop tables (hidden on mobile) -->
+<!-- Desktop table (hidden on mobile) -->
+<% if (dateGroups.length === 0) { %>
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-10 text-center text-sm text-gray-400">
+  No jobs in this period.
+</div>
+<% } else { %>
 <div class="hidden md:block">
-  <div id="view-date">
-    <%- renderTable(dateGroups, 'd', 'date') %>
-  </div>
-  <div id="view-location" class="hidden">
-    <%- renderTable(locationGroups, 'l', 'location') %>
-  </div>
+  <%- renderTable(dateGroups, 'd', 'date') %>
 </div>
 
 <!-- Mobile cards (hidden on desktop) -->
 <div class="md:hidden">
-  <div id="view-date-mobile">
-    <%- renderCards(dateGroups, 'd') %>
-  </div>
-  <div id="view-location-mobile" class="hidden">
-    <%- renderCards(locationGroups, 'l') %>
+  <%- renderCards(dateGroups, 'd') %>
+</div>
+<% } %>
+
+<!-- Pagination -->
+<% if (totalPages > 1 || page > 1) { %>
+<div class="mt-6 flex items-center justify-between">
+  <p class="text-xs text-gray-400">
+    <%
+      const fmtD = iso => new Date(iso + 'T12:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    %>
+    <% if (pageOldest && pageNewest) { %>
+      <%= pageOldest === pageNewest ? fmtD(pageNewest) : fmtD(pageOldest) + ' – ' + fmtD(pageNewest) %> &nbsp;·&nbsp;
+    <% } %>
+    page <%= page %> of <%= totalPages %>
+  </p>
+  <div class="flex items-center gap-2">
+    <% if (page > 1) { %>
+    <a href="/jobs?<%= (activeGroupId ? 'group=' + activeGroupId + '&' : activeOthers ? 'group=others&' : '') %>page=<%= page - 1 %>"
+       class="px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 rounded-lg transition-colors shadow-sm">
+      ← Newer
+    </a>
+    <% } %>
+    <% if (page < totalPages) { %>
+    <a href="/jobs?<%= (activeGroupId ? 'group=' + activeGroupId + '&' : activeOthers ? 'group=others&' : '') %>page=<%= page + 1 %>"
+       class="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+      Older →
+    </a>
+    <% } %>
   </div>
 </div>
+<% } %>
 
 <!-- Company note popover (editable) -->
 <div id="company-note-popover" class="hidden fixed z-50 bg-white rounded-xl shadow-xl border border-gray-200 p-3" style="width:280px;max-width:90vw;">
@@ -433,34 +452,6 @@ function toggleMobileGroup(prefix, gi) {
   chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
 }
 
-function setGrouping(mode) {
-  document.getElementById('view-date').classList.toggle('hidden', mode !== 'date');
-  document.getElementById('view-location').classList.toggle('hidden', mode !== 'location');
-  document.getElementById('view-date-mobile').classList.toggle('hidden', mode !== 'date');
-  document.getElementById('view-location-mobile').classList.toggle('hidden', mode !== 'location');
-  const btnDate = document.getElementById('btn-date');
-  const btnLoc  = document.getElementById('btn-location');
-  const activeClass = ['text-gray-900', 'font-semibold'];
-  const inactiveClass = ['text-gray-500', 'font-medium'];
-  const activeShadow = 'shadow-[inset_0_-2px_0_#1f2937]';
-  [btnDate, btnLoc].forEach(btn => {
-    btn.classList.remove(...activeClass, ...inactiveClass, activeShadow);
-  });
-  if (mode === 'date') {
-    btnDate.classList.add(...activeClass, activeShadow);
-    btnLoc.classList.add(...inactiveClass);
-  } else {
-    btnLoc.classList.add(...activeClass, activeShadow);
-    btnDate.classList.add(...inactiveClass);
-  }
-  try { localStorage.setItem('jobs-grouping', mode); } catch(_) {}
-}
-
-(function() {
-  let saved = 'date';
-  try { saved = localStorage.getItem('jobs-grouping') || 'date'; } catch(_) {}
-  setGrouping(saved);
-})();
 </script>
 
 <% } %>

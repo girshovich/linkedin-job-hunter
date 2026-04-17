@@ -925,6 +925,7 @@
     // ---- Clickable row helper ----
     function jobRowClick(event, url) {
       if (event.target.closest('.verdict-btn') || event.target.closest('a') || event.target.closest('button')) return;
+      if (event.metaKey || event.ctrlKey) { window.open(url, '_blank'); return; }
       location.href = url;
     }
 

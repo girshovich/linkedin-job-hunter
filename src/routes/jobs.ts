@@ -1,71 +1,18 @@
 /**
- * Jobs Match Route — All curated (STRONG_MATCH, non-duplicate) jobs grouped by country.
+ * Jobs Match Route — STRONG_MATCH jobs grouped by date, paginated by 10 distinct run-dates.
  */
 
 import { Router, type Request, type Response } from 'express';
 import { getDb, type JobRow } from '../db';
 
 const router = Router();
+const PAGE_DATES = 10; // number of distinct run-dates shown per page
 
-// Regional aggregates — keep verbatim instead of treating as city/country
-const AGGREGATES = new Set([
-  'emea', 'european union', 'european economic area', 'eea',
-  'eu', 'worldwide', 'global', 'international', 'apac', 'latam',
-  'mena', 'dach', 'benelux', 'cee', 'anz',
-]);
-
-// Sub-national regions / metro areas LinkedIn uses that are not country names
-const REGION_TO_COUNTRY: Record<string, string> = {
-  'greater london metropolitan area':     'United Kingdom',
-  'greater london':                        'United Kingdom',
-  'greater manchester':                    'United Kingdom',
-  'greater barcelona metropolitan area':   'Spain',
-  'greater madrid metropolitan area':      'Spain',
-  'basque country':                        'Spain',
-  'catalonia':                             'Spain',
-  'community of madrid':                   'Spain',
-  'ile-de-france':                         'France',
-  'grand paris':                           'France',
-  'greater paris metropolitan area':       'France',
-  'north holland':                         'Netherlands',
-  'greater amsterdam metropolitan area':   'Netherlands',
-  'greater berlin metropolitan area':      'Germany',
-  'bavaria':                               'Germany',
-  'flanders':                              'Belgium',
-  'wallonia':                              'Belgium',
-  'lombardy':                              'Italy',
-  'greater milan metropolitan area':       'Italy',
-  'greater warsaw metropolitan area':      'Poland',
-  'masovian voivodeship':                  'Poland',
-};
-
-function extractCountry(location: string | null): string {
-  if (!location) return 'Remote / Unknown';
-  const trimmed = location.trim();
-  if (!trimmed || trimmed.toLowerCase() === 'remote') return 'Remote / Unknown';
-
-  // Whole string is an aggregate
-  if (AGGREGATES.has(trimmed.toLowerCase())) return trimmed;
-
-  const parts = trimmed.split(',').map((s) => s.trim()).filter(Boolean);
-  const last = parts[parts.length - 1];
-  if (!last) return trimmed;
-
-  // Last segment is an aggregate
-  if (AGGREGATES.has(last.toLowerCase())) return last;
-
-  // Single-part location: check if it's a known sub-national region/metro area
-  if (parts.length === 1) {
-    return REGION_TO_COUNTRY[last.toLowerCase()] ?? last;
-  }
-
-  // Multi-part: last segment is typically the country (LinkedIn format: City, Region, Country)
-  return last;
-}
-
-interface LocationGroup {
-  location: string;
-  jobs: JobRow[];
+// Per-profile cache of distinct fetch dates — only changes after a pipeline run.
+// Invalidated by invalidateJobsDatesCache(), called from runner.ts on run completion.
+const datesCache = new Map<number, Array<{ d: string }>>();
+export function invalidateJobsDatesCache(profileId: number): void {
+  datesCache.delete(profileId);
 }
 
 interface DateGroup {
@@ -83,7 +30,29 @@ router.get('/', (req: Request, res: Response) => {
   const activeGroupId = !activeOthers && groupParam !== 'all'
     ? parseInt(groupParam, 10) : null;
 
-  // Tabs: groups (for this profile) that have at least one STRONG_MATCH job
+  // All distinct dates that have STRONG_MATCH jobs for this profile, newest first.
+  // Result is cached per-profile and invalidated by invalidateJobsDatesCache() after each run.
+  let allDates = datesCache.get(profileId);
+  if (!allDates) {
+    allDates = db.prepare(`
+      SELECT DISTINCT DATE(fetched_at) as d
+      FROM jobs
+      WHERE profile_id = ? AND ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0
+        AND fetched_at IS NOT NULL
+      ORDER BY d DESC
+    `).all(profileId) as Array<{ d: string }>;
+    datesCache.set(profileId, allDates);
+  }
+
+  const totalPages = Math.max(1, Math.ceil(allDates.length / PAGE_DATES));
+  const page = Math.max(1, Math.min(parseInt(String(req.query.page || '1'), 10), totalPages));
+
+  // The slice of dates for this page
+  const pageDates = allDates.slice((page - 1) * PAGE_DATES, page * PAGE_DATES).map((r) => r.d);
+  const pageNewest = pageDates[0] ?? null;
+  const pageOldest = pageDates[pageDates.length - 1] ?? null;
+
+  // Tabs: groups that have at least one STRONG_MATCH job (all-time counts)
   const tabGroups = db.prepare(`
     SELECT sg.id, sg.group_name, COUNT(j.id) as job_count
     FROM search_groups sg
@@ -92,64 +61,62 @@ router.get('/', (req: Request, res: Response) => {
     GROUP BY sg.id ORDER BY sg.id ASC
   `).all(profileId) as Array<{ id: number; group_name: string; job_count: number }>;
 
-  // "Others" tab: jobs for this profile whose group was deleted
+  // "Others" tab: jobs whose group was deleted (all-time count)
   const orphanCount = (db.prepare(`
     SELECT COUNT(*) as c FROM jobs
     WHERE profile_id = ? AND ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0
     AND (group_id IS NULL OR group_id NOT IN (SELECT id FROM search_groups WHERE profile_id = ?))
   `).get(profileId, profileId) as { c: number }).c;
 
-  const jobs = (activeGroupId
-    ? db.prepare(
-        `SELECT * FROM jobs
-         WHERE profile_id = ? AND ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0 AND group_id = ?
-         ORDER BY DATE(fetched_at) DESC, ai_score DESC`,
-      ).all(profileId, activeGroupId)
-    : activeOthers
-    ? db.prepare(
-        `SELECT * FROM jobs
-         WHERE profile_id = ? AND ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0
-         AND (group_id IS NULL OR group_id NOT IN (SELECT id FROM search_groups WHERE profile_id = ?))
-         ORDER BY DATE(fetched_at) DESC, ai_score DESC`,
-      ).all(profileId, profileId)
-    : db.prepare(
-        `SELECT * FROM jobs
-         WHERE profile_id = ? AND ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0
-         ORDER BY DATE(fetched_at) DESC, ai_score DESC`,
-      ).all(profileId)
-  ) as JobRow[];
+  // Only the columns the jobs.ejs template actually reads — skips description,
+  // ai_rationale, cv_assessment and other large/unused fields (~5 KB saved per job).
+  const COLS = `id, title, company, location, url, ai_score, ai_verdict,
+                is_duplicate, ai_summary, fetched_at, applied, user_notes`;
 
-  // Location grouping
-  const countryMap = new Map<string, JobRow[]>();
-  for (const job of jobs) {
-    const country = extractCountry(job.location);
-    if (!countryMap.has(country)) countryMap.set(country, []);
-    countryMap.get(country)!.push(job);
+  // Fetch jobs for the current page's dates
+  let jobs: JobRow[] = [];
+  if (pageDates.length > 0) {
+    const ph = pageDates.map(() => '?').join(',');
+    jobs = (activeGroupId
+      ? db.prepare(
+          `SELECT ${COLS} FROM jobs
+           WHERE profile_id = ? AND ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0
+             AND group_id = ? AND DATE(fetched_at) IN (${ph})
+           ORDER BY fetched_at DESC, ai_score DESC, id DESC`,
+        ).all(profileId, activeGroupId, ...pageDates)
+      : activeOthers
+      ? db.prepare(
+          `SELECT ${COLS} FROM jobs
+           WHERE profile_id = ? AND ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0
+             AND (group_id IS NULL OR group_id NOT IN (SELECT id FROM search_groups WHERE profile_id = ?))
+             AND DATE(fetched_at) IN (${ph})
+           ORDER BY fetched_at DESC, ai_score DESC, id DESC`,
+        ).all(profileId, profileId, ...pageDates)
+      : db.prepare(
+          `SELECT ${COLS} FROM jobs
+           WHERE profile_id = ? AND ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0
+             AND DATE(fetched_at) IN (${ph})
+           ORDER BY fetched_at DESC, ai_score DESC, id DESC`,
+        ).all(profileId, ...pageDates)
+    ) as JobRow[];
   }
 
-  const locationGroups: LocationGroup[] = Array.from(countryMap.entries())
-    .sort(([a], [b]) => {
-      if (a === 'Remote / Unknown') return 1;
-      if (b === 'Remote / Unknown') return -1;
-      return a.localeCompare(b);
-    })
-    .map(([location, groupJobs]) => ({ location, jobs: groupJobs }));
-
-  // Date grouping — newest date first, jobs within each date sorted by score (preserved from query)
+  // Group jobs by date (newest first, score-sorted within each date)
   const dateMap = new Map<string, JobRow[]>();
   for (const job of jobs) {
     const key = job.fetched_at ? String(job.fetched_at).slice(0, 10) : 'Unknown';
     if (!dateMap.has(key)) dateMap.set(key, []);
     dateMap.get(key)!.push(job);
   }
-
   const dateGroups: DateGroup[] = Array.from(dateMap.entries())
     .sort(([a], [b]) => b.localeCompare(a))
     .map(([key, groupJobs]) => ({
-      label: key === 'Unknown' ? 'Unknown Date' : new Date(key + 'T12:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+      label: key === 'Unknown' ? 'Unknown Date'
+        : new Date(key + 'T12:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
       jobs: groupJobs,
     }));
 
+  // All-time total (shown in header)
   const totalAll = (db.prepare(
     `SELECT COUNT(*) as c FROM jobs WHERE profile_id = ? AND ai_verdict = 'STRONG_MATCH' AND is_duplicate = 0`,
   ).get(profileId) as { c: number }).c;
@@ -158,7 +125,14 @@ router.get('/', (req: Request, res: Response) => {
   const companyNotes: Record<string, string> = {};
   for (const r of companyNoteRows) { if (r.note) companyNotes[r.company] = r.note; }
 
-  res.render('jobs', { locationGroups, dateGroups, tabGroups, activeGroupId, activeOthers, orphanCount, total: totalAll, title: 'Jobs Match', companyNotes });
+  res.render('jobs', {
+    dateGroups,
+    tabGroups, activeGroupId, activeOthers, orphanCount,
+    total: totalAll,
+    page, totalPages, pageNewest, pageOldest,
+    title: 'Jobs Match',
+    companyNotes,
+  });
 });
 
 export { router as jobsRouter };
